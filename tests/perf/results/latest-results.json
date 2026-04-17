@@ -1,0 +1,66 @@
+{
+  "runtime": "MCGNRuntime",
+  "frameCount": 120,
+  "scenarios": [
+    {
+      "scenarioId": "A1",
+      "nodeCount": 500,
+      "multiColorNodes": 140,
+      "renderedFrames": 120,
+      "elapsedMs": 13.678,
+      "avgFrameMs": 0.114,
+      "overlayAdds": 140,
+      "overlayRemoves": 140
+    },
+    {
+      "scenarioId": "A2",
+      "nodeCount": 2000,
+      "multiColorNodes": 507,
+      "renderedFrames": 120,
+      "elapsedMs": 38.528,
+      "avgFrameMs": 0.3211,
+      "overlayAdds": 507,
+      "overlayRemoves": 507
+    },
+    {
+      "scenarioId": "A3",
+      "nodeCount": 5000,
+      "multiColorNodes": 1249,
+      "renderedFrames": 120,
+      "elapsedMs": 94.782,
+      "avgFrameMs": 0.7898,
+      "overlayAdds": 1249,
+      "overlayRemoves": 1249
+    },
+    {
+      "scenarioId": "B1",
+      "nodeCount": 500,
+      "multiColorNodes": 208,
+      "renderedFrames": 120,
+      "elapsedMs": 6.627,
+      "avgFrameMs": 0.0552,
+      "overlayAdds": 208,
+      "overlayRemoves": 208
+    },
+    {
+      "scenarioId": "B2",
+      "nodeCount": 2000,
+      "multiColorNodes": 794,
+      "renderedFrames": 120,
+      "elapsedMs": 22.105,
+      "avgFrameMs": 0.1842,
+      "overlayAdds": 794,
+      "overlayRemoves": 794
+    },
+    {
+      "scenarioId": "B3",
+      "nodeCount": 5000,
+      "multiColorNodes": 1963,
+      "renderedFrames": 120,
+      "elapsedMs": 46.56,
+      "avgFrameMs": 0.388,
+      "overlayAdds": 1776,
+      "overlayRemoves": 1776
+    }
+  ]
+}
