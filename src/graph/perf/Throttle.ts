@@ -17,12 +17,16 @@ export class FrameThrottle {
     this.interval = Math.max(1, Math.floor(options.interval));
   }
 
-  shouldDrawThisFrame(): boolean {
-    if (!this.enabled) {
+  shouldDraw(simulationActive: boolean): boolean {
+    if (!this.enabled || !simulationActive) {
       return true;
     }
     this.frame += 1;
     return this.frame % this.interval === 0;
+  }
+
+  shouldDrawThisFrame(): boolean {
+    return this.shouldDraw(true);
   }
 
   reset(): void {

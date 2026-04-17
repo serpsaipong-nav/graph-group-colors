@@ -5,6 +5,12 @@ export interface ViewportBounds {
   bottom: number;
 }
 
+export interface ViewTransform {
+  panX: number;
+  panY: number;
+  scale: number;
+}
+
 export interface PositionedNode {
   x: number;
   y: number;
@@ -29,4 +35,18 @@ export function isNodeVisibleInViewport(
     return false;
   }
   return true;
+}
+
+export function viewportFromTransform(
+  width: number,
+  height: number,
+  transform: ViewTransform
+): ViewportBounds {
+  const safeScale = transform.scale === 0 ? 1 : transform.scale;
+  return {
+    left: (-transform.panX) / safeScale,
+    right: (width - transform.panX) / safeScale,
+    top: (-transform.panY) / safeScale,
+    bottom: (height - transform.panY) / safeScale
+  };
 }
