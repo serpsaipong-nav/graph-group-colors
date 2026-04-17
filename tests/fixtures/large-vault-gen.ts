@@ -61,6 +61,8 @@ export function generateLargeVaultFixture(options: VaultFixtureOptions): VaultFi
   const nodes: FixtureNode[] = [];
   const tagsByPath = new Map<string, readonly string[]>();
 
+  const multiColorCount = Math.round(nodeCount * multiColorRatio);
+
   for (let i = 0; i < nodeCount; i += 1) {
     const row = Math.floor(i / gridSize);
     const col = i % gridSize;
@@ -74,9 +76,9 @@ export function generateLargeVaultFixture(options: VaultFixtureOptions): VaultFi
     const thirdGroup = (i * 11 + 5) % groupCount;
 
     const tags = new Set<string>([`#g${firstGroup}`]);
-    if (rng() < multiColorRatio) {
+    if (i < multiColorCount) {
       tags.add(`#g${secondGroup === firstGroup ? (secondGroup + 1) % groupCount : secondGroup}`);
-      if (rng() < multiColorRatio * 0.35) {
+      if (i % 3 === 0) {
         tags.add(`#g${thirdGroup}`);
       }
     }

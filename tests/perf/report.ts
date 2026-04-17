@@ -1,6 +1,7 @@
 export type NumericMetric = number | null;
 export type CheckStatus = "pass" | "fail" | "not-run";
 export type DecisionResult = "go" | "no-go" | "pending";
+export type ThresholdStatus = "pass" | "warn" | "fail";
 
 export interface PerfResultStats {
   meanFrameMs: NumericMetric;
@@ -20,6 +21,12 @@ export interface PerfDecision {
   followUps?: string;
 }
 
+export interface ThresholdSummaryInput {
+  id: string;
+  status: ThresholdStatus;
+  message: string;
+}
+
 export interface PerfReportInput {
   date?: string;
   branch?: string;
@@ -31,6 +38,7 @@ export interface PerfReportInput {
   candidate?: Partial<PerfResultStats>;
   checks?: Partial<PerfInvariantChecks>;
   decision?: Partial<PerfDecision>;
+  thresholdOutcomes?: ThresholdSummaryInput[];
 }
 
 interface NormalizedPerfReport {
@@ -45,6 +53,7 @@ interface NormalizedPerfReport {
   delta: PerfResultStats;
   checks: PerfInvariantChecks;
   decision: Required<PerfDecision>;
+  thresholdOutcomes: ThresholdSummaryInput[];
 }
 
 const NOT_RECORDED = "Not run";
@@ -109,12 +118,19 @@ function normalizeInput(input: PerfReportInput): NormalizedPerfReport {
       result: input.decision?.result ?? "pending",
       rationale: normalizeText(input.decision?.rationale),
       followUps: normalizeText(input.decision?.followUps)
-    }
+    },
+    thresholdOutcomes: input.thresholdOutcomes ?? []
   };
 }
 
 export function renderPerfReport(input: PerfReportInput = {}): string {
   const data = normalizeInput(input);
+  const thresholdLines =
+    data.thresholdOutcomes.length === 0
+      ? ["- No threshold outcomes recorded"]
+      : data.thresholdOutcomes.map(
+          (outcome) => `- ${outcome.id}: ${outcome.status} (${outcome.message})`
+        );
 
   return [
     "# M4 Perf Report",
@@ -160,6 +176,10 @@ export function renderPerfReport(input: PerfReportInput = {}): string {
     `- Invariant: additive rendering unchanged: ${data.checks.additiveRendering}`,
     `- Invariant: fail-safe and restore: ${data.checks.failSafeRestore}`,
     `- Invariant: skip path cost near-zero: ${data.checks.skipPathCost}`,
+    "",
+    "## Threshold outcomes",
+    "",
+    ...thresholdLines,
     "",
     "## Decision",
     "",

@@ -10,6 +10,7 @@ describe("renderPerfReport", () => {
     expect(report).toContain("- p95 frame time delta (ms): Not run");
     expect(report).toContain("- Go/No-Go: pending");
     expect(report).toContain("- Invariant: additive rendering unchanged: not-run");
+    expect(report).toContain("- No threshold outcomes recorded");
   });
 
   it("renders metrics and computed deltas from provided results", () => {
@@ -35,6 +36,13 @@ describe("renderPerfReport", () => {
         failSafeRestore: "pass",
         skipPathCost: "pass"
       },
+      thresholdOutcomes: [
+        {
+          id: "A1",
+          status: "pass",
+          message: "A1 actual=0.7ms target<=1ms"
+        }
+      ],
       decision: {
         result: "go",
         rationale: "Candidate improves frame-time metrics without regressions.",
@@ -49,6 +57,7 @@ describe("renderPerfReport", () => {
     expect(report).toContain("- Max frame time delta (ms): -1.200");
     expect(report).toContain("- Go/No-Go: go");
     expect(report).toContain("- Follow-ups: Re-run after integration branch merge.");
+    expect(report).toContain("- A1: pass (A1 actual=0.7ms target<=1ms)");
   });
 
   it("treats invalid numeric values as not run", () => {

@@ -9,7 +9,8 @@ import {
   LIFECYCLE_CHECK_IDS,
   NET_PERF_SCENARIO_IDS,
   evaluateScenarioOutcome,
-  evaluateScenarioOutcomes
+  evaluateScenarioOutcomes,
+  summarizeThresholdOutcomes
 } from "./thresholds";
 
 describe("metrics helpers", () => {
@@ -74,5 +75,22 @@ describe("threshold evaluation", () => {
     expect(outcomes[0]?.status).toBe("pass");
     expect(outcomes[1]?.status).toBe("warn");
     expect(outcomes[2]?.status).toBe("pass");
+  });
+
+  it("summarizes go/no-go from threshold outcomes", () => {
+    const outcomes = evaluateScenarioOutcomes({
+      A1: 0.9,
+      A2: 3.9,
+      A3: 0.05,
+      B1: 8,
+      B2: 22,
+      B3: 5,
+      LIFECYCLE_ATTACH_MS: 80,
+      LIFECYCLE_UNLOAD_MS: 20,
+      LIFECYCLE_MEMORY_MB: 35
+    });
+    const summary = summarizeThresholdOutcomes(outcomes);
+    expect(summary.decision).toBe("go");
+    expect(summary.failedIds).toHaveLength(0);
   });
 });

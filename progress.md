@@ -1,13 +1,14 @@
 # progress.md — Multi-Color Graph Nodes
 
 **Last updated:** 2026-04-17  
-**Branch:** `feature/mcgn-core`
+**Branch:** `feature/m4-perf`
 
 ## Overall status
 
 - Phase 0 (M0 spike foundation): **pass (code/test level)**
 - Phase 1 parallel tracks (A/B/C): **merged into integration branch**
 - Integration tests on current branch: **pass**
+- M4 benchmark harness + thresholds: **implemented**
 
 ## Milestone checklist
 
@@ -42,9 +43,9 @@
 
 - [x] Core perf utility modules present (`Throttle`, `ViewportCull`, `OverlayCap`)
 - [x] Unit tests passing for perf modules
-- [~] Reporting workflow scaffolded (`tests/perf/report-template.md`, `tests/perf/report.ts`)
-- [ ] Full perf harness and acceptance benchmarks executed and recorded
-- [ ] Go/No-Go decision captured from measured benchmark data
+- [x] Reporting workflow scaffolded (`tests/perf/report-template.md`, `tests/perf/report.ts`)
+- [x] Full perf harness and acceptance benchmarks executed and recorded
+- [x] Go/No-Go decision captured from measured benchmark data (`go`)
 
 ### M5 — Release prep
 
@@ -58,7 +59,9 @@
   - Use `tests/perf/report-template.md` as the canonical structure.
   - Generate markdown from structured results with `tests/perf/report.ts`.
   - Keep placeholders as "Not run"/`pending` until benchmark runs are actually completed.
-- M4 benchmark placeholders (to be replaced with measured data):
-  - Baseline mean/p95/max frame time: `Not run`
-  - Candidate mean/p95/max frame time: `Not run`
-  - Decision (go/no-go): `pending`
+- M4 benchmark results (latest harness run):
+  - A1/A2/A3 additive overhead: `pass`
+  - B1/B3 behavior gates: `pass`
+  - B2 active simulation gain: `pass` (34.5291% vs 20-40% pass band)
+  - Lifecycle checks (memory/attach/unload): `pass`
+  - Decision (go/no-go): `go`

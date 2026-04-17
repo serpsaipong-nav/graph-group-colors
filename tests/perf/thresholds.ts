@@ -23,6 +23,12 @@ export interface ThresholdOutcome {
   readonly message: string;
 }
 
+export interface ThresholdSummary {
+  readonly decision: "go" | "no-go" | "pending";
+  readonly failedIds: ScenarioOrLifecycleId[];
+  readonly warnedIds: ScenarioOrLifecycleId[];
+}
+
 type ThresholdMode = "max" | "min" | "range";
 
 interface RangeTarget {
@@ -222,4 +228,30 @@ export function evaluateScenarioOutcomes(
     outcomes.push(evaluateScenarioOutcome(id, value, targets));
   }
   return outcomes;
+}
+
+export function summarizeThresholdOutcomes(outcomes: readonly ThresholdOutcome[]): ThresholdSummary {
+  if (outcomes.length === 0) {
+    return {
+      decision: "pending",
+      failedIds: [],
+      warnedIds: []
+    };
+  }
+
+  const failedIds: ScenarioOrLifecycleId[] = [];
+  const warnedIds: ScenarioOrLifecycleId[] = [];
+  for (const outcome of outcomes) {
+    if (outcome.status === "fail") {
+      failedIds.push(outcome.id);
+    } else if (outcome.status === "warn") {
+      warnedIds.push(outcome.id);
+    }
+  }
+
+  return {
+    decision: failedIds.length > 0 ? "no-go" : "go",
+    failedIds,
+    warnedIds
+  };
 }
