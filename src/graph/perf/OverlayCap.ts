@@ -24,4 +24,8 @@ export class OverlayCap {
     }
     return visibleNodeCount <= this.maxVisibleNodes;
   }
+
+  getMaxVisibleNodes(): number {
+    return this.maxVisibleNodes;
+  }
 }
