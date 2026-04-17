@@ -42,7 +42,9 @@
 
 - [x] Core perf utility modules present (`Throttle`, `ViewportCull`, `OverlayCap`)
 - [x] Unit tests passing for perf modules
-- [ ] Full perf harness and acceptance benchmarks
+- [~] Reporting workflow scaffolded (`tests/perf/report-template.md`, `tests/perf/report.ts`)
+- [ ] Full perf harness and acceptance benchmarks executed and recorded
+- [ ] Go/No-Go decision captured from measured benchmark data
 
 ### M5 — Release prep
 
@@ -52,3 +54,11 @@
 
 - This tracker captures repository progress only.
 - Runtime/manual checks in a dev vault should be recorded here once run.
+- M4 reporting workflow:
+  - Use `tests/perf/report-template.md` as the canonical structure.
+  - Generate markdown from structured results with `tests/perf/report.ts`.
+  - Keep placeholders as "Not run"/`pending` until benchmark runs are actually completed.
+- M4 benchmark placeholders (to be replaced with measured data):
+  - Baseline mean/p95/max frame time: `Not run`
+  - Candidate mean/p95/max frame time: `Not run`
+  - Decision (go/no-go): `pending`
