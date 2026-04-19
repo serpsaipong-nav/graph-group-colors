@@ -306,6 +306,105 @@ export function readNodeRadius(node: unknown): number | null {
 }
 
 /**
+ * Screen-space transform used by Obsidian's graph renderer: world → screen is
+ * `screenX = x * scale + panX`, `screenY = y * scale + panY`. Returns null when
+ * the fields are missing / non-finite (fall back: skip the frame, not wrong-positioned draw).
+ */
+export function readRendererScreenTransform(
+  renderer: RendererInternal
+): { panX: number; panY: number; scale: number } | null {
+  const r = renderer as unknown as Record<string, unknown>;
+  const panX = r.panX;
+  const panY = r.panY;
+  const scale = r.scale;
+  if (
+    typeof panX !== "number" ||
+    typeof panY !== "number" ||
+    typeof scale !== "number" ||
+    !Number.isFinite(panX) ||
+    !Number.isFinite(panY) ||
+    !Number.isFinite(scale) ||
+    scale <= 0
+  ) {
+    return null;
+  }
+  return { panX, panY, scale };
+}
+
+/**
+ * Compute where to draw the overlay so it lands on the visible graph node circle, expressed
+ * in `targetContainer`'s local coordinate space.
+ *
+ * Why the two-step global → local dance: in Obsidian 1.12+ the node `circle`/sprite is often
+ * nested inside per-node or per-layer containers, so `circle.x/y` are local coords in some
+ * intermediate container — not in our overlay mount. Using them directly either floats overlays
+ * off-node or collapses them to the world origin (hanger center). `circle.getGlobalPosition()`
+ * flattens the entire transform chain to screen coordinates; `targetContainer.toLocal(...)`
+ * reprojects those back into our mount's space. This works regardless of where the circle lives.
+ *
+ * Returns null if PIXI shape is unexpected; caller should skip drawing for that node.
+ */
+function pickNodeDisplayObject(node: Record<string, unknown>): Record<string, unknown> | null {
+  const candidates = [node.circle, node.sprite, node.obj, node.g, node.graphic, node.displayObject, node.graphics];
+  for (const c of candidates) {
+    if (isObject(c)) {
+      return c as Record<string, unknown>;
+    }
+  }
+  return null;
+}
+
+export function readNodeWorldPosition(
+  node: unknown,
+  targetContainer: unknown
+): { x: number; y: number } | null {
+  if (!isObject(node) || !isObject(targetContainer)) return null;
+  const display = pickNodeDisplayObject(node as Record<string, unknown>);
+  if (!display) {
+    return readNodeSimulationPosition(node);
+  }
+
+  const getGlobalPosition = display.getGlobalPosition;
+  const toLocal = (targetContainer as Record<string, unknown>).toLocal;
+  if (typeof getGlobalPosition === "function" && typeof toLocal === "function") {
+    let global: unknown;
+    try {
+      global = (getGlobalPosition as () => unknown).call(display);
+    } catch {
+      return readNodeSimulationPosition(node);
+    }
+    if (isObject(global)) {
+      const g = global as Record<string, unknown>;
+      if (typeof g.x === "number" && typeof g.y === "number" && Number.isFinite(g.x) && Number.isFinite(g.y)) {
+        let local: unknown;
+        try {
+          local = (toLocal as (point: unknown) => unknown).call(targetContainer, { x: g.x, y: g.y });
+        } catch {
+          return readNodeSimulationPosition(node);
+        }
+        if (isObject(local)) {
+          const l = local as Record<string, unknown>;
+          if (typeof l.x === "number" && typeof l.y === "number" && Number.isFinite(l.x) && Number.isFinite(l.y)) {
+            return { x: l.x, y: l.y };
+          }
+        }
+      }
+    }
+  }
+
+  return readNodeSimulationPosition(node);
+}
+
+function readNodeSimulationPosition(node: unknown): { x: number; y: number } | null {
+  if (!isObject(node)) return null;
+  const n = node as Record<string, unknown>;
+  if (typeof n.x === "number" && typeof n.y === "number" && Number.isFinite(n.x) && Number.isFinite(n.y)) {
+    return { x: n.x, y: n.y };
+  }
+  return null;
+}
+
+/**
  * Pick the PIXI parent for overlay mount so `node.x` / `node.y` match stock graph coordinates.
  * Obsidian keeps node positions in a nested "world" container; `stage` alone is a fallback.
  *

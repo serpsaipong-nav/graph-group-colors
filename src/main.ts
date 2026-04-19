@@ -17,9 +17,9 @@ import {
   isGraphLikeView,
   probeGlobalPixiGraphicsDrawMode,
   readNodeRadius,
+  readRendererScreenTransform,
   tryCreateGlobalPixiOverlayMount,
   tryDetachOverlayChildFromParent,
-  tryResolveGraphOverlayParent,
   type PixiOverlayMountLike,
   type RendererInternal
 } from "./utils/obsidianInternals";
@@ -54,9 +54,8 @@ interface ViewState {
   handle: HookHandle;
   overlay: NodeOverlay;
   overlayMount: PixiOverlayMountLike;
-  /** Current PIXI parent of `overlayMount` (stage or graph world). */
+  /** Current PIXI parent of `overlayMount` — always stage; kept for safe teardown. */
   mountParent: { current: unknown };
-  mountParentResolved: boolean;
 }
 
 export class MCGNRuntime {
@@ -154,8 +153,7 @@ export class MCGNRuntime {
       handle: null as unknown as HookHandle,
       overlay,
       overlayMount,
-      mountParent,
-      mountParentResolved: false
+      mountParent
     };
 
     const handle = tryAttachGraphView(
@@ -248,7 +246,11 @@ export class MCGNRuntime {
       return;
     }
 
-    this.resolveOverlayMountParentIfNeeded(renderer, state);
+    const transform = readRendererScreenTransform(renderer);
+    if (!transform) {
+      return;
+    }
+    const { panX, panY, scale } = transform;
 
     const viewport = this.settings.perf.cullOutsideViewport
       ? this.resolveViewportBounds(renderer)
@@ -267,7 +269,10 @@ export class MCGNRuntime {
       if (radius === null || radius <= 0) {
         continue;
       }
-      overlay.draw({ ...node, id: filePath, r: radius }, colors);
+      const screenX = node.x * scale + panX;
+      const screenY = node.y * scale + panY;
+      const screenR = radius * scale;
+      overlay.draw({ ...node, id: filePath, r: screenR, x: screenX, y: screenY }, colors);
     }
 
     if (this.settings.perf.debugLogMultiColorStats) {
@@ -275,25 +280,6 @@ export class MCGNRuntime {
     }
 
     ensurePixiDisplayObjectIsOnTop(state.mountParent.current, overlayMount);
-  }
-
-  private resolveOverlayMountParentIfNeeded(renderer: RendererInternal, state: ViewState): void {
-    if (state.mountParentResolved) {
-      return;
-    }
-    const nodes = renderer.nodes;
-    const sample = nodes[0];
-    if (!sample) {
-      return;
-    }
-    const { parent } = tryResolveGraphOverlayParent(renderer, sample);
-    const cur = state.mountParent.current;
-    if (parent !== cur) {
-      tryDetachOverlayChildFromParent(cur, state.overlayMount);
-      (parent as { addChild(child: unknown): void }).addChild(state.overlayMount);
-      state.mountParent.current = parent;
-    }
-    state.mountParentResolved = true;
   }
 
   private maybeLogMultiColorStats(
