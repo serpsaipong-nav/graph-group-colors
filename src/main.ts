@@ -1,11 +1,29 @@
 import { ColorCache } from "./graph/ColorCache";
 import { tryAttachGraphView, type HookHandle } from "./graph/GraphViewHook";
 import { GroupResolver, type GraphConfig, type GroupColorMatch } from "./graph/GroupResolver";
-import { NodeOverlay, type GroupColor, type PixiGraphicsLike } from "./graph/NodeOverlay";
+import {
+  NodeOverlay,
+  type GroupColor,
+  type PixiGraphicsDrawMode,
+  type PixiGraphicsLike
+} from "./graph/NodeOverlay";
 import { OverlayCap } from "./graph/perf/OverlayCap";
 import { FrameThrottle } from "./graph/perf/Throttle";
 import { isNodeVisibleInViewport, viewportFromTransform, type ViewportBounds } from "./graph/perf/ViewportCull";
-import { getRendererFromView, isGraphLikeView, type RendererInternal } from "./utils/obsidianInternals";
+import {
+  describeRendererShape,
+  ensurePixiDisplayObjectIsOnTop,
+  getRendererFromView,
+  isGraphLikeView,
+  probeGlobalPixiGraphicsDrawMode,
+  readNodeRadius,
+  tryCreateGlobalPixiOverlayMount,
+  tryDetachOverlayChildFromParent,
+  tryResolveGraphOverlayParent,
+  type PixiOverlayMountLike,
+  type RendererInternal
+} from "./utils/obsidianInternals";
+import { preNormalizeGraphNodeId } from "./utils/graphNodePath";
 import { DEFAULT_SETTINGS, normalizeSettings, type MultiColorSettings } from "./settings/settings";
 
 export interface RuntimeLogger {
@@ -15,6 +33,17 @@ export interface RuntimeLogger {
 export interface RuntimeDeps {
   logger: RuntimeLogger;
   createGraphics(): PixiGraphicsLike;
+  /**
+   * Map graph `node.id` to the vault path used by `getAbstractFileByPath` / metadata cache.
+   * When omitted, only {@link preNormalizeGraphNodeId} runs (tests / headless harness).
+   */
+  normalizeNodePath?(id: string): string;
+  /**
+   * Test / perf harness only. Production uses `PIXI.Container` from Obsidian.
+   */
+  createOverlayMount?(): PixiOverlayMountLike;
+  /** Override Pixi draw pipeline (tests). */
+  getPixiGraphicsDrawMode?(): PixiGraphicsDrawMode;
   getNodeTags(path: string): readonly string[];
   getAllGraphViews(): readonly unknown[];
   getViewportBounds?(renderer: RendererInternal): ViewportBounds | null;
@@ -24,6 +53,10 @@ export interface RuntimeDeps {
 interface ViewState {
   handle: HookHandle;
   overlay: NodeOverlay;
+  overlayMount: PixiOverlayMountLike;
+  /** Current PIXI parent of `overlayMount` (stage or graph world). */
+  mountParent: { current: unknown };
+  mountParentResolved: boolean;
 }
 
 export class MCGNRuntime {
@@ -32,9 +65,21 @@ export class MCGNRuntime {
   private readonly viewStateByView = new Map<unknown, ViewState>();
   private readonly throttle = new FrameThrottle({ enabled: false, interval: 2 });
   private readonly overlayCap = new OverlayCap({ enabled: false, maxVisibleNodes: 2000 });
+  private readonly graphicsDrawMode: PixiGraphicsDrawMode;
   private settings = DEFAULT_SETTINGS;
+  private lastDebugLogMs = 0;
 
-  constructor(private readonly deps: RuntimeDeps) {}
+  constructor(private readonly deps: RuntimeDeps) {
+    this.graphicsDrawMode = this.deps.getPixiGraphicsDrawMode?.() ?? probeGlobalPixiGraphicsDrawMode();
+  }
+
+  private defaultNormalizeNodePath(id: string): string {
+    return preNormalizeGraphNodeId(id);
+  }
+
+  private resolveNodePath(id: string): string {
+    return this.deps.normalizeNodePath?.(id) ?? this.defaultNormalizeNodePath(id);
+  }
 
   setSettings(nextSettings: Partial<MultiColorSettings>): void {
     this.settings = normalizeSettings({
@@ -55,8 +100,10 @@ export class MCGNRuntime {
       maxVisibleNodes: this.settings.perf.maxVisibleNodes
     });
 
-    for (const state of this.viewStateByView.values()) {
-      state.overlay.setMaxColorsPerNode(this.settings.maxColorsPerNode);
+    for (const [, state] of this.viewStateByView.entries()) {
+      if (!state.overlay.isDestroyed()) {
+        state.overlay.setMaxColorsPerNode(this.settings.maxColorsPerNode);
+      }
       if (this.settings.killSwitch) {
         state.overlay.destroy();
       }
@@ -83,25 +130,47 @@ export class MCGNRuntime {
     }
     const renderer = getRendererFromView(view);
     if (!renderer) {
-      this.deps.logger.warn("[MCGN] Unexpected graph renderer shape, skipping hook.");
+      this.deps.logger.warn(
+        `[MCGN] Unexpected graph renderer shape, skipping hook. ${describeRendererShape(view)}`
+      );
       return;
     }
 
-    const overlay = new NodeOverlay(renderer.px.stage, () => this.deps.createGraphics(), {
-      maxColorsPerNode: this.settings.maxColorsPerNode
+    const overlayMount =
+      this.deps.createOverlayMount?.() ?? tryCreateGlobalPixiOverlayMount();
+    if (!overlayMount) {
+      this.deps.logger.warn("[MCGN] PIXI.Container not available; skipping graph attach.");
+      return;
+    }
+    renderer.px.stage.addChild(overlayMount);
+
+    const mountParent = { current: renderer.px.stage as unknown };
+    const overlay = new NodeOverlay(overlayMount, () => this.deps.createGraphics(), {
+      maxColorsPerNode: this.settings.maxColorsPerNode,
+      graphicsDrawMode: this.graphicsDrawMode
     });
+
+    const state: ViewState = {
+      handle: null as unknown as HookHandle,
+      overlay,
+      overlayMount,
+      mountParent,
+      mountParentResolved: false
+    };
 
     const handle = tryAttachGraphView(
       view,
-      () => this.renderFrame(renderer, overlay),
+      () => this.renderFrame(renderer, state),
       this.deps.logger
     );
     if (!handle) {
       overlay.destroy();
+      this.safeTeardownOverlayMount(mountParent, overlayMount);
       return;
     }
+    state.handle = handle;
 
-    this.viewStateByView.set(view, { handle, overlay });
+    this.viewStateByView.set(view, state);
   }
 
   detachView(view: unknown): void {
@@ -113,6 +182,7 @@ export class MCGNRuntime {
       state.handle.detach();
     } finally {
       state.overlay.destroy();
+      this.safeTeardownOverlayMount(state.mountParent, state.overlayMount);
       this.viewStateByView.delete(view);
     }
   }
@@ -160,7 +230,8 @@ export class MCGNRuntime {
     return this.viewStateByView.size;
   }
 
-  private renderFrame(renderer: RendererInternal, overlay: NodeOverlay): void {
+  private renderFrame(renderer: RendererInternal, state: ViewState): void {
+    const { overlay, overlayMount } = state;
     if (this.settings.killSwitch) {
       overlay.destroy();
       return;
@@ -177,6 +248,8 @@ export class MCGNRuntime {
       return;
     }
 
+    this.resolveOverlayMountParentIfNeeded(renderer, state);
+
     const viewport = this.settings.perf.cullOutsideViewport
       ? this.resolveViewportBounds(renderer)
       : null;
@@ -184,12 +257,81 @@ export class MCGNRuntime {
       if (viewport && !isNodeVisibleInViewport(node, viewport)) {
         continue;
       }
-      const colors = this.getNodeColors(node.id);
+      const filePath = this.resolveNodePath(node.id);
+      const colors = this.getNodeColors(filePath);
       if (colors.length <= 1) {
-        overlay.clear(node.id);
+        overlay.clear(filePath);
         continue;
       }
-      overlay.draw(node, colors);
+      const radius = readNodeRadius(node);
+      if (radius === null || radius <= 0) {
+        continue;
+      }
+      overlay.draw({ ...node, id: filePath, r: radius }, colors);
+    }
+
+    if (this.settings.perf.debugLogMultiColorStats) {
+      this.maybeLogMultiColorStats(nodes, viewport);
+    }
+
+    ensurePixiDisplayObjectIsOnTop(state.mountParent.current, overlayMount);
+  }
+
+  private resolveOverlayMountParentIfNeeded(renderer: RendererInternal, state: ViewState): void {
+    if (state.mountParentResolved) {
+      return;
+    }
+    const nodes = renderer.nodes;
+    const sample = nodes[0];
+    if (!sample) {
+      return;
+    }
+    const { parent } = tryResolveGraphOverlayParent(renderer, sample);
+    const cur = state.mountParent.current;
+    if (parent !== cur) {
+      tryDetachOverlayChildFromParent(cur, state.overlayMount);
+      (parent as { addChild(child: unknown): void }).addChild(state.overlayMount);
+      state.mountParent.current = parent;
+    }
+    state.mountParentResolved = true;
+  }
+
+  private maybeLogMultiColorStats(
+    nodes: RendererInternal["nodes"],
+    viewport: ViewportBounds | null
+  ): void {
+    const now = Date.now();
+    if (now - this.lastDebugLogMs < 5000) {
+      return;
+    }
+    this.lastDebugLogMs = now;
+    let multi = 0;
+    let visible = 0;
+    for (const node of nodes) {
+      if (viewport && !isNodeVisibleInViewport(node, viewport)) {
+        continue;
+      }
+      visible += 1;
+      const filePath = this.resolveNodePath(node.id);
+      const colors = this.getNodeColors(filePath);
+      if (colors.length > 1) {
+        multi += 1;
+      }
+    }
+    console.info(
+      `[MCGN] multi-color nodes (2+ groups): ${multi} / visible ${visible} / total ${nodes.length}`
+    );
+  }
+
+  private safeTeardownOverlayMount(
+    mountParent: { current: unknown },
+    mount: PixiOverlayMountLike
+  ): void {
+    tryDetachOverlayChildFromParent(mountParent.current, mount);
+    try {
+      mount.destroy({ children: false });
+    } catch {
+      // Ignore double-destroy or PIXI edge cases during kill-switch / detach races.
     }
   }
 
@@ -240,8 +382,16 @@ export class MCGNRuntime {
   }
 
   private isEnabledForView(view: unknown): boolean {
-    const getViewType = (view as { getViewType?: () => string }).getViewType;
-    const viewType = getViewType?.();
+    const fn = (view as { getViewType?: unknown }).getViewType;
+    if (typeof fn !== "function") {
+      return false;
+    }
+    let viewType: unknown;
+    try {
+      viewType = (fn as () => unknown).call(view);
+    } catch {
+      return false;
+    }
     if (viewType === "graph") {
       return this.settings.enableGlobalGraph;
     }

@@ -4,11 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "node esbuild.config.mjs production",
+    "dev": "node esbuild.config.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:perf": "vitest run tests/perf/harness.test.ts"
   },
   "devDependencies": {
+    "esbuild": "^0.25.9",
+    "obsidian": "^1.12.3",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   }

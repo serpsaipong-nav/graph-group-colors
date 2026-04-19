@@ -9,17 +9,17 @@
       "multiColorNodes": 500,
       "runs": 5,
       "baseline": {
-        "medianFrameMs": 0.0003,
-        "minFrameMs": 0.0001,
-        "maxFrameMs": 0.0009
+        "medianFrameMs": 0.0004,
+        "minFrameMs": 0,
+        "maxFrameMs": 0.0017
       },
       "candidate": {
-        "medianFrameMs": 0.1286,
-        "minFrameMs": 0.1121,
-        "maxFrameMs": 0.1545
+        "medianFrameMs": 0.4277,
+        "minFrameMs": 0.2871,
+        "maxFrameMs": 0.7423
       },
-      "additiveOverheadMs": 0.1283,
-      "percentImprovement": -42766.6667
+      "additiveOverheadMs": 0.4273,
+      "percentImprovement": -106825
     },
     {
       "scenarioId": "A2",
@@ -32,12 +32,12 @@
         "maxFrameMs": 0.0001
       },
       "candidate": {
-        "medianFrameMs": 0.4577,
-        "minFrameMs": 0.4529,
-        "maxFrameMs": 0.5098
+        "medianFrameMs": 2.149,
+        "minFrameMs": 1.6672,
+        "maxFrameMs": 4.5725
       },
-      "additiveOverheadMs": 0.4576,
-      "percentImprovement": -457600
+      "additiveOverheadMs": 2.1489,
+      "percentImprovement": -2148900
     },
     {
       "scenarioId": "A3",
@@ -45,17 +45,17 @@
       "multiColorNodes": 0,
       "runs": 5,
       "baseline": {
-        "medianFrameMs": 0.0001,
+        "medianFrameMs": 0,
         "minFrameMs": 0,
         "maxFrameMs": 0.0001
       },
       "candidate": {
-        "medianFrameMs": 0.0394,
-        "minFrameMs": 0.0328,
-        "maxFrameMs": 0.0413
+        "medianFrameMs": 0.153,
+        "minFrameMs": 0.1196,
+        "maxFrameMs": 0.5372
       },
-      "additiveOverheadMs": 0.0393,
-      "percentImprovement": -39300
+      "additiveOverheadMs": 0.153,
+      "percentImprovement": -152900
     },
     {
       "scenarioId": "B1",
@@ -63,17 +63,17 @@
       "multiColorNodes": 3000,
       "runs": 5,
       "baseline": {
-        "medianFrameMs": 0.8971,
-        "minFrameMs": 0.8543,
-        "maxFrameMs": 0.9149
+        "medianFrameMs": 1.4529,
+        "minFrameMs": 1.2831,
+        "maxFrameMs": 8.5315
       },
       "candidate": {
-        "medianFrameMs": 0.8934,
-        "minFrameMs": 0.887,
-        "maxFrameMs": 1.0118
+        "medianFrameMs": 1.3726,
+        "minFrameMs": 1.1842,
+        "maxFrameMs": 2.4646
       },
-      "additiveOverheadMs": -0.0037,
-      "percentImprovement": 0.4124
+      "additiveOverheadMs": -0.0803,
+      "percentImprovement": 5.5269
     },
     {
       "scenarioId": "B2",
@@ -81,17 +81,17 @@
       "multiColorNodes": 2750,
       "runs": 5,
       "baseline": {
-        "medianFrameMs": 0.8648,
-        "minFrameMs": 0.819,
-        "maxFrameMs": 0.8981
+        "medianFrameMs": 1.219,
+        "minFrameMs": 1.1215,
+        "maxFrameMs": 1.6527
       },
       "candidate": {
-        "medianFrameMs": 0.5896,
-        "minFrameMs": 0.5458,
-        "maxFrameMs": 0.6075
+        "medianFrameMs": 0.8138,
+        "minFrameMs": 0.7785,
+        "maxFrameMs": 0.8639
       },
-      "additiveOverheadMs": -0.2752,
-      "percentImprovement": 31.8224
+      "additiveOverheadMs": -0.4052,
+      "percentImprovement": 33.2404
     },
     {
       "scenarioId": "B3",
@@ -99,42 +99,42 @@
       "multiColorNodes": 3000,
       "runs": 5,
       "baseline": {
-        "medianFrameMs": 0.8977,
-        "minFrameMs": 0.8566,
-        "maxFrameMs": 1.01
+        "medianFrameMs": 1.278,
+        "minFrameMs": 1.192,
+        "maxFrameMs": 1.3617
       },
       "candidate": {
-        "medianFrameMs": 0.8769,
-        "minFrameMs": 0.8607,
-        "maxFrameMs": 0.9635
+        "medianFrameMs": 1.2237,
+        "minFrameMs": 1.121,
+        "maxFrameMs": 1.2997
       },
-      "additiveOverheadMs": -0.0208,
-      "percentImprovement": 2.317
+      "additiveOverheadMs": -0.0543,
+      "percentImprovement": 4.2488
     }
   ],
   "lifecycle": {
-    "attachMs": 0.019,
-    "unloadMs": 0.164,
-    "memoryOverheadMb": 0
+    "attachMs": 0.023,
+    "unloadMs": 0.156,
+    "memoryOverheadMb": 9.523
   },
   "thresholdOutcomes": [
     {
       "id": "A1",
-      "actual": 0.1283,
+      "actual": 0.4273,
       "status": "pass",
-      "message": "A1 Additive overhead at 500 visible nodes, all multi-color. actual=0.1283ms, target=<= 1ms"
+      "message": "A1 Additive overhead at 500 visible nodes, all multi-color. actual=0.4273ms, target=<= 1ms"
     },
     {
       "id": "A2",
-      "actual": 0.4576,
+      "actual": 2.1489,
       "status": "pass",
-      "message": "A2 Additive overhead at 2,000 visible nodes, all multi-color. actual=0.4576ms, target=<= 4ms"
+      "message": "A2 Additive overhead at 2,000 visible nodes, all multi-color. actual=2.1489ms, target=<= 4ms"
     },
     {
       "id": "A3",
-      "actual": 0.0393,
-      "status": "pass",
-      "message": "A3 Additive overhead at 500 nodes, 0% multi-color. actual=0.0393ms, target=<= 0.1ms"
+      "actual": 0.153,
+      "status": "warn",
+      "message": "A3 Additive overhead at 500 nodes, 0% multi-color. actual=0.153ms, target=<= 0.1ms"
     },
     {
       "id": "B1",
@@ -144,38 +144,40 @@
     },
     {
       "id": "B2",
-      "actual": 31.8224,
+      "actual": 33.2404,
       "status": "pass",
-      "message": "B2 Perf toggles ON active simulation improvement target. actual=31.8224%, target=20% to 40%"
+      "message": "B2 Perf toggles ON active simulation improvement target. actual=33.2404%, target=20% to 40%"
     },
     {
       "id": "B3",
-      "actual": 2.317,
+      "actual": 4.2488,
       "status": "pass",
-      "message": "B3 Idle panning should stay within +/-10% of stock. actual=2.317%, target=-10% to 10%"
+      "message": "B3 Idle panning should stay within +/-10% of stock. actual=4.2488%, target=-10% to 10%"
     },
     {
       "id": "LIFECYCLE_ATTACH_MS",
-      "actual": 0.019,
+      "actual": 0.023,
       "status": "pass",
-      "message": "LIFECYCLE_ATTACH_MS Initial attach latency. actual=0.019ms, target=<= 150ms"
+      "message": "LIFECYCLE_ATTACH_MS Initial attach latency. actual=0.023ms, target=<= 150ms"
     },
     {
       "id": "LIFECYCLE_UNLOAD_MS",
-      "actual": 0.164,
+      "actual": 0.156,
       "status": "pass",
-      "message": "LIFECYCLE_UNLOAD_MS Unload latency. actual=0.164ms, target=<= 50ms"
+      "message": "LIFECYCLE_UNLOAD_MS Unload latency. actual=0.156ms, target=<= 50ms"
     },
     {
       "id": "LIFECYCLE_MEMORY_MB",
-      "actual": 0,
+      "actual": 9.523,
       "status": "pass",
-      "message": "LIFECYCLE_MEMORY_MB Memory overhead at 5,000 nodes. actual=0MB, target=<= 50MB"
+      "message": "LIFECYCLE_MEMORY_MB Memory overhead at 5,000 nodes. actual=9.523MB, target=<= 50MB"
     }
   ],
   "decision": {
     "result": "go",
     "failedIds": [],
-    "warnedIds": []
+    "warnedIds": [
+      "A3"
+    ]
   }
 }

@@ -90,6 +90,12 @@ class SyntheticGraphics {
   destroy(): void {}
 }
 
+class SyntheticOverlayMount {
+  addChild(): void {}
+  removeChild(): void {}
+  destroy(): void {}
+}
+
 const SCENARIOS: readonly ScenarioDef[] = [
   {
     id: "A1",
@@ -185,15 +191,22 @@ function runTrial(
 
   let overlayAdds = 0;
   let overlayRemoves = 0;
+  const stageChildren: unknown[] = [];
   const renderer = {
     nodes,
     renderCallback() {},
     px: {
       stage: {
-        addChild() {
+        children: stageChildren,
+        addChild(child: unknown) {
+          stageChildren.push(child);
           overlayAdds += 1;
         },
-        removeChild() {
+        removeChild(child: unknown) {
+          const i = stageChildren.indexOf(child);
+          if (i >= 0) {
+            stageChildren.splice(i, 1);
+          }
           overlayRemoves += 1;
         }
       }
@@ -213,6 +226,12 @@ function runTrial(
     },
     createGraphics() {
       return new SyntheticGraphics();
+    },
+    createOverlayMount() {
+      return new SyntheticOverlayMount();
+    },
+    getPixiGraphicsDrawMode() {
+      return "legacy" as const;
     },
     getNodeTags(path: string) {
       return fixture.tagsByPath.get(path) ?? [];

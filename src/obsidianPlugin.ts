@@ -1,0 +1,274 @@
+import { normalizePath, Plugin, TFile } from "obsidian";
+import { GraphGroupColorsSettingTab } from "./GraphGroupColorsSettingTab";
+import type { GraphConfig } from "./graph/GroupResolver";
+import { MCGNRuntime } from "./main";
+import type { GraphGroupColorsPluginApi } from "./pluginApi";
+import { DEFAULT_SETTINGS, normalizeSettings, type MultiColorSettings } from "./settings/settings";
+import { preNormalizeGraphNodeId } from "./utils/graphNodePath";
+import { collectTagsFromCachedMetadata } from "./utils/tagsFromMetadata";
+import {
+  probeGlobalPixiGraphicsDrawMode,
+  readSimulationActiveFromRenderer,
+  tryCreateGlobalPixiGraphics
+} from "./utils/obsidianInternals";
+
+export default class GraphGroupColorsPlugin extends Plugin implements GraphGroupColorsPluginApi {
+  runtime: MCGNRuntime | null = null;
+  mergedSettings: MultiColorSettings = DEFAULT_SETTINGS;
+  private graphReloadTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Single-flight guard for async graph runtime startup. */
+  private runtimeLaunch: Promise<void> | null = null;
+  /** Log once if we are waiting for PIXI (loads with Graph view). */
+  private loggedPixiDeferred = false;
+
+  async onload(): Promise<void> {
+    const loaded = (await this.loadData()) as Partial<MultiColorSettings> | null | undefined;
+    this.mergedSettings = normalizeSettings({
+      ...DEFAULT_SETTINGS,
+      ...loaded,
+      perf: {
+        ...DEFAULT_SETTINGS.perf,
+        ...loaded?.perf
+      }
+    });
+
+    this.registerEvent(
+      this.app.workspace.on("layout-change", () => {
+        void this.onWorkspaceLayoutChange();
+      })
+    );
+
+    await this.ensureGraphRuntime();
+    this.addSettingTab(new GraphGroupColorsSettingTab(this.app, this));
+  }
+
+  private async onWorkspaceLayoutChange(): Promise<void> {
+    try {
+      if (this.runtime) {
+        this.runtime.refreshAttachedViews();
+        return;
+      }
+      await this.ensureGraphRuntime();
+    } catch (error) {
+      console.warn("[MCGN] layout-change handler failed; will retry on next layout event.", error);
+    }
+  }
+
+  /**
+   * Obsidian often exposes `globalThis.PIXI` only after Graph view has loaded WebGL/PIXI once.
+   * Retry on `layout-change` until PIXI and `graph.json` are available.
+   */
+  private async ensureGraphRuntime(): Promise<void> {
+    if (this.runtime) {
+      return;
+    }
+    if (this.runtimeLaunch) {
+      await this.runtimeLaunch;
+      return;
+    }
+    this.runtimeLaunch = this.launchGraphRuntime();
+    try {
+      await this.runtimeLaunch;
+    } finally {
+      this.runtimeLaunch = null;
+    }
+  }
+
+  async applyPluginSettings(partial: Partial<MultiColorSettings>): Promise<void> {
+    this.mergedSettings = normalizeSettings({
+      ...this.mergedSettings,
+      ...partial,
+      perf: {
+        ...this.mergedSettings.perf,
+        ...partial.perf
+      }
+    });
+    await this.saveData(this.mergedSettings);
+    this.runtime?.setSettings(this.mergedSettings);
+  }
+
+  onunload(): void {
+    if (this.graphReloadTimer !== null) {
+      clearTimeout(this.graphReloadTimer);
+      this.graphReloadTimer = null;
+    }
+    this.runtime?.destroy();
+    this.runtime = null;
+  }
+
+  private graphConfigPath(): string {
+    return normalizePath(`${this.app.vault.configDir}/graph.json`);
+  }
+
+  private normalizeVaultPathForGraph(path: string): string {
+    return normalizePath(preNormalizeGraphNodeId(path));
+  }
+
+  private async launchGraphRuntime(): Promise<void> {
+    const probe = tryCreateGlobalPixiGraphics();
+    if (!probe) {
+      if (!this.loggedPixiDeferred) {
+        this.loggedPixiDeferred = true;
+        console.info(
+          "[MCGN] PIXI not loaded yet — open Graph view once, then reload the plugin or switch tabs so overlays can attach."
+        );
+      }
+      return;
+    }
+    probe.destroy();
+
+    const graphConfig = await this.readGraphConfig();
+    if (!graphConfig) {
+      console.warn(
+        `[MCGN] Could not read color groups from ${this.graphConfigPath()}. Ensure Graph settings → Groups exist (creates graph.json).`
+      );
+      return;
+    }
+
+    const runtime = new MCGNRuntime({
+      logger: {
+        warn(message: string, error?: unknown): void {
+          if (error !== undefined) {
+            console.warn(message, error);
+          } else {
+            console.warn(message);
+          }
+        }
+      },
+      createGraphics: () => {
+        const graphic = tryCreateGlobalPixiGraphics();
+        if (!graphic) {
+          throw new Error("[MCGN] PIXI.Graphics became unavailable.");
+        }
+        return graphic;
+      },
+      getPixiGraphicsDrawMode: () => probeGlobalPixiGraphicsDrawMode(),
+      normalizeNodePath: (id: string) => normalizePath(preNormalizeGraphNodeId(id)),
+      getNodeTags: (path: string) => this.collectTagsForPath(path),
+      getAllGraphViews: () => this.collectOpenGraphViews(),
+      isSimulationActive: (renderer) => readSimulationActiveFromRenderer(renderer)
+    });
+
+    runtime.loadGraphConfig(graphConfig);
+    runtime.setSettings(this.mergedSettings);
+    this.runtime = runtime;
+
+    this.registerEvent(
+      this.app.metadataCache.on("changed", (file) => {
+        if (file instanceof TFile) {
+          this.runtime?.onMetadataChanged(this.normalizeVaultPathForGraph(file.path));
+        }
+      })
+    );
+
+    this.registerEvent(
+      this.app.vault.on("rename", (file, oldPath) => {
+        if (file instanceof TFile) {
+          this.runtime?.onFileRename(
+            this.normalizeVaultPathForGraph(oldPath),
+            this.normalizeVaultPathForGraph(file.path)
+          );
+        }
+      })
+    );
+
+    this.registerEvent(
+      this.app.vault.on("delete", (file) => {
+        if (file instanceof TFile) {
+          this.runtime?.onFileDelete(this.normalizeVaultPathForGraph(file.path));
+        }
+      })
+    );
+
+    this.registerEvent(
+      this.app.vault.on("create", (file) => {
+        if (file instanceof TFile) {
+          this.runtime?.onFileCreate(this.normalizeVaultPathForGraph(file.path));
+        }
+      })
+    );
+
+    const graphPath = this.graphConfigPath();
+    this.registerEvent(
+      this.app.vault.on("modify", (file) => {
+        if (file.path === graphPath) {
+          this.scheduleGraphConfigReload();
+        }
+      })
+    );
+
+    runtime.attachToOpenViews();
+    console.info(
+      "[MCGN] Active: multi-color overlays on Graph / Local graph when a note matches 2+ color groups (see Graph settings → Groups)."
+    );
+  }
+
+  private scheduleGraphConfigReload(): void {
+    if (this.graphReloadTimer !== null) {
+      clearTimeout(this.graphReloadTimer);
+    }
+    this.graphReloadTimer = setTimeout(() => {
+      this.graphReloadTimer = null;
+      void this.reloadGraphConfig();
+    }, 150);
+  }
+
+  private async reloadGraphConfig(): Promise<void> {
+    if (!this.runtime) {
+      return;
+    }
+    const next = await this.readGraphConfig();
+    if (!next) {
+      console.warn("[MCGN] graph.json reload failed; keeping previous groups.");
+      return;
+    }
+    this.runtime.loadGraphConfig(next);
+    this.runtime.refreshAttachedViews();
+  }
+
+  private async readGraphConfig(): Promise<GraphConfig | null> {
+    const path = this.graphConfigPath();
+    try {
+      const raw = await this.app.vault.adapter.read(path);
+      const parsed = JSON.parse(raw) as unknown;
+      if (!isObject(parsed)) {
+        return null;
+      }
+      const colorGroups = parsed.colorGroups;
+      if (colorGroups !== undefined && !Array.isArray(colorGroups)) {
+        return null;
+      }
+      return { colorGroups } as GraphConfig;
+    } catch {
+      return null;
+    }
+  }
+
+  private collectOpenGraphViews(): unknown[] {
+    const graphLeaves = this.app.workspace.getLeavesOfType("graph");
+    const localLeaves = this.app.workspace.getLeavesOfType("localgraph");
+    const views: unknown[] = [];
+    for (const leaf of [...graphLeaves, ...localLeaves]) {
+      // Skip deferred leaves (Obsidian 1.7+): `leaf.view` exists but has no renderer
+      // until the tab is first activated. Re-emits `layout-change` when loaded.
+      if ((leaf as unknown as { isDeferred?: boolean }).isDeferred) {
+        continue;
+      }
+      views.push(leaf.view);
+    }
+    return views;
+  }
+
+  private collectTagsForPath(path: string): readonly string[] {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) {
+      return [];
+    }
+    const meta = this.app.metadataCache.getFileCache(file);
+    return collectTagsFromCachedMetadata(meta);
+  }
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}

@@ -13,19 +13,24 @@ export interface GroupColor {
   alpha: number;
 }
 
+export type PixiGraphicsDrawMode = "legacy" | "v8";
+
 export interface NodeOverlayOptions {
   maxColorsPerNode: number;
+  graphicsDrawMode: PixiGraphicsDrawMode;
 }
 
 export interface PixiGraphicsLike {
   x: number;
   y: number;
   clear(): void;
-  beginFill(color: number, alpha?: number): void;
+  beginFill?(color: number, alpha?: number): void;
   moveTo(x: number, y: number): void;
   arc(x: number, y: number, radius: number, startAngle: number, endAngle: number): void;
   lineTo(x: number, y: number): void;
-  endFill(): void;
+  endFill?(): void;
+  /** Pixi v8: close path and apply fill. */
+  fill?(style: { color: number; alpha?: number }): unknown;
   destroy(): void;
 }
 
@@ -47,6 +52,8 @@ interface OverlayState {
 export class NodeOverlay {
   private readonly overlayByNodeId = new Map<string, OverlayState>();
   private maxColorsPerNode: number;
+  private graphicsDrawMode: PixiGraphicsDrawMode;
+  private destroyed = false;
 
   constructor(
     private readonly container: PixiContainerLike,
@@ -54,13 +61,31 @@ export class NodeOverlay {
     options: NodeOverlayOptions
   ) {
     this.maxColorsPerNode = Math.max(2, Math.floor(options.maxColorsPerNode));
+    this.graphicsDrawMode = options.graphicsDrawMode;
+  }
+
+  isDestroyed(): boolean {
+    return this.destroyed;
   }
 
   setMaxColorsPerNode(maxColorsPerNode: number): void {
+    if (this.destroyed) {
+      return;
+    }
     this.maxColorsPerNode = Math.max(2, Math.floor(maxColorsPerNode));
   }
 
+  setGraphicsDrawMode(mode: PixiGraphicsDrawMode): void {
+    if (this.destroyed) {
+      return;
+    }
+    this.graphicsDrawMode = mode;
+  }
+
   draw(node: GraphNodeLike, colors: readonly GroupColor[]): void {
+    if (this.destroyed) {
+      return;
+    }
     const cappedCount = Math.min(this.maxColorsPerNode, colors.length);
     if (cappedCount <= 1) {
       this.clear(node.id);
@@ -94,6 +119,9 @@ export class NodeOverlay {
   }
 
   clear(nodeId: string): void {
+    if (this.destroyed) {
+      return;
+    }
     const state = this.overlayByNodeId.get(nodeId);
     if (!state) {
       return;
@@ -104,6 +132,10 @@ export class NodeOverlay {
   }
 
   destroy(): void {
+    if (this.destroyed) {
+      return;
+    }
+    this.destroyed = true;
     for (const [nodeId, state] of this.overlayByNodeId.entries()) {
       this.container.removeChild(state.graphic);
       state.graphic.destroy();
@@ -134,11 +166,23 @@ export class NodeOverlay {
     for (let i = 0; i < count; i += 1) {
       const color = colors[i];
       const end = start + step;
-      graphic.beginFill(color.rgb, color.alpha);
-      graphic.moveTo(0, 0);
-      graphic.arc(0, 0, node.r, start, end);
-      graphic.lineTo(0, 0);
-      graphic.endFill();
+      if (this.graphicsDrawMode === "v8" && typeof graphic.fill === "function") {
+        graphic.moveTo(0, 0);
+        graphic.arc(0, 0, node.r, start, end);
+        graphic.lineTo(0, 0);
+        graphic.fill({ color: color.rgb, alpha: color.alpha });
+      } else if (typeof graphic.beginFill === "function" && typeof graphic.endFill === "function") {
+        graphic.beginFill(color.rgb, color.alpha);
+        graphic.moveTo(0, 0);
+        graphic.arc(0, 0, node.r, start, end);
+        graphic.lineTo(0, 0);
+        graphic.endFill();
+      } else if (typeof graphic.fill === "function") {
+        graphic.moveTo(0, 0);
+        graphic.arc(0, 0, node.r, start, end);
+        graphic.lineTo(0, 0);
+        graphic.fill({ color: color.rgb, alpha: color.alpha });
+      }
       start = end;
     }
   }

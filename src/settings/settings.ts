@@ -4,6 +4,8 @@ export interface PerfSettings {
   cullOutsideViewport: boolean;
   overlayCapEnabled: boolean;
   maxVisibleNodes: number;
+  /** When true, logs rate-limited multi-color resolution stats to the developer console. */
+  debugLogMultiColorStats: boolean;
 }
 
 export interface MultiColorSettings {
@@ -19,13 +21,14 @@ export const DEFAULT_SETTINGS: MultiColorSettings = {
   maxColorsPerNode: 6,
   enableGlobalGraph: true,
   enableLocalGraph: true,
-  perf: {
-    throttleEnabled: false,
-    throttleInterval: 2,
-    cullOutsideViewport: false,
-    overlayCapEnabled: false,
-    maxVisibleNodes: 2000
-  }
+    perf: {
+      throttleEnabled: false,
+      throttleInterval: 2,
+      cullOutsideViewport: false,
+      overlayCapEnabled: false,
+      maxVisibleNodes: 2000,
+      debugLogMultiColorStats: false
+    }
 };
 
 function normalizePositiveInt(value: number, fallback: number, minValue: number): number {
@@ -59,6 +62,9 @@ export function normalizeSettings(input: Partial<MultiColorSettings> | null | un
         perfInput?.maxVisibleNodes ?? DEFAULT_SETTINGS.perf.maxVisibleNodes,
         DEFAULT_SETTINGS.perf.maxVisibleNodes,
         1
+      ),
+      debugLogMultiColorStats: Boolean(
+        perfInput?.debugLogMultiColorStats ?? DEFAULT_SETTINGS.perf.debugLogMultiColorStats
       )
     }
   };

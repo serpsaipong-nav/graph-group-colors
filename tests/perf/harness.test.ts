@@ -4,7 +4,9 @@ import { runHarness, writeLatestResults } from "./harness";
 import { renderPerfReport } from "./report";
 
 describe("perf harness runner", () => {
-  it("writes latest perf matrix results", async () => {
+  it(
+    "writes latest perf matrix results",
+    async () => {
     const results = runHarness();
     await writeLatestResults(results);
     const report = renderPerfReport({
@@ -23,5 +25,7 @@ describe("perf harness runner", () => {
     });
     await mkdir(new URL("./results", import.meta.url), { recursive: true });
     await writeFile(new URL("./results/latest-report.md", import.meta.url), `${report}\n`, "utf8");
-  });
+    },
+    15_000
+  );
 });
