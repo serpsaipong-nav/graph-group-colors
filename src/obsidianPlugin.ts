@@ -1,9 +1,14 @@
-import { normalizePath, Plugin, TFile } from "obsidian";
+import { normalizePath, Notice, Plugin, TFile } from "obsidian";
 import { GraphGroupColorsSettingTab } from "./GraphGroupColorsSettingTab";
 import type { GraphConfig } from "./graph/GroupResolver";
 import { MCGNRuntime } from "./main";
 import type { GraphGroupColorsPluginApi } from "./pluginApi";
-import { DEFAULT_SETTINGS, normalizeSettings, type MultiColorSettings } from "./settings/settings";
+import {
+  DEFAULT_SETTINGS,
+  normalizeSettings,
+  type MultiColorSettings,
+  type PartialMultiColorSettings
+} from "./settings/settings";
 import { preNormalizeGraphNodeId } from "./utils/graphNodePath";
 import { collectTagsFromCachedMetadata } from "./utils/tagsFromMetadata";
 import {
@@ -40,6 +45,51 @@ export default class GraphGroupColorsPlugin extends Plugin implements GraphGroup
 
     await this.ensureGraphRuntime();
     this.addSettingTab(new GraphGroupColorsSettingTab(this.app, this));
+
+    this.addCommand({
+      id: "toggle-global-graph",
+      name: "Toggle multi-color overlays: Global graph",
+      callback: () => {
+        void this.toggleGlobalGraph();
+      }
+    });
+
+    this.addCommand({
+      id: "toggle-local-graph",
+      name: "Toggle multi-color overlays: Local graph",
+      callback: () => {
+        void this.toggleLocalGraph();
+      }
+    });
+
+    this.addCommand({
+      id: "cycle-scope",
+      name: "Cycle overlay scope (Both → Global only → Local only)",
+      callback: () => {
+        void this.cycleScope();
+      }
+    });
+  }
+
+  private async toggleGlobalGraph(): Promise<void> {
+    const next = !this.mergedSettings.enableGlobalGraph;
+    await this.applyPluginSettings({ enableGlobalGraph: next });
+    new Notice(`[MCGN] Global graph overlays: ${next ? "on" : "off"}`);
+  }
+
+  private async toggleLocalGraph(): Promise<void> {
+    const next = !this.mergedSettings.enableLocalGraph;
+    await this.applyPluginSettings({ enableLocalGraph: next });
+    new Notice(`[MCGN] Local graph overlays: ${next ? "on" : "off"}`);
+  }
+
+  private async cycleScope(): Promise<void> {
+    const next = nextScope(currentScope(this.mergedSettings));
+    await this.applyPluginSettings({
+      enableGlobalGraph: next !== "local",
+      enableLocalGraph: next !== "global"
+    });
+    new Notice(`[MCGN] Overlay scope: ${scopeLabel(next)}`);
   }
 
   private async onWorkspaceLayoutChange(): Promise<void> {
@@ -74,7 +124,7 @@ export default class GraphGroupColorsPlugin extends Plugin implements GraphGroup
     }
   }
 
-  async applyPluginSettings(partial: Partial<MultiColorSettings>): Promise<void> {
+  async applyPluginSettings(partial: PartialMultiColorSettings): Promise<void> {
     this.mergedSettings = normalizeSettings({
       ...this.mergedSettings,
       ...partial,
@@ -85,6 +135,8 @@ export default class GraphGroupColorsPlugin extends Plugin implements GraphGroup
     });
     await this.saveData(this.mergedSettings);
     this.runtime?.setSettings(this.mergedSettings);
+    this.runtime?.refreshAttachedViews();
+    this.runtime?.forceRenderAttachedViews();
   }
 
   onunload(): void {
@@ -271,4 +323,25 @@ export default class GraphGroupColorsPlugin extends Plugin implements GraphGroup
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+export type OverlayScope = "both" | "global" | "local";
+
+export function currentScope(settings: MultiColorSettings): OverlayScope {
+  if (settings.enableGlobalGraph && settings.enableLocalGraph) return "both";
+  if (settings.enableGlobalGraph) return "global";
+  if (settings.enableLocalGraph) return "local";
+  return "both";
+}
+
+export function nextScope(scope: OverlayScope): OverlayScope {
+  if (scope === "both") return "global";
+  if (scope === "global") return "local";
+  return "both";
+}
+
+export function scopeLabel(scope: OverlayScope): string {
+  if (scope === "global") return "Global graph only";
+  if (scope === "local") return "Local graph only";
+  return "Both (global + local)";
 }

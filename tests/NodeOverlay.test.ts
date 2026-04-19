@@ -149,7 +149,7 @@ describe("NodeOverlay", () => {
       graphicsDrawMode: "v8"
     });
     overlay.draw({ id: "a", x: 1, y: 2, r: 4 }, [colors[0], colors[1]]);
-    const graphics = container.added[0] as FakeV8;
+    const graphics = container.added[0] as unknown as FakeV8;
     expect(graphics.calls.filter((c) => c.startsWith("fill:"))).toHaveLength(2);
     expect(graphics.calls.some((c) => c.startsWith("beginFill"))).toBe(false);
   });

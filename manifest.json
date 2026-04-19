@@ -5,6 +5,7 @@
   "minAppVersion": "1.12.7",
   "description": "Renders graph nodes with multiple colors when a note matches more than one color group (read-only overlay on stock graph rendering).",
   "author": "Pong",
+  "authorUrl": "https://github.com/serpsaipong-nav",
   "isDesktopOnly": true,
   "main": "main.js",
   "styles": "styles.css"

@@ -12,7 +12,6 @@ import { FrameThrottle } from "./graph/perf/Throttle";
 import { isNodeVisibleInViewport, viewportFromTransform, type ViewportBounds } from "./graph/perf/ViewportCull";
 import {
   describeRendererShape,
-  ensurePixiDisplayObjectIsOnTop,
   getRendererFromView,
   isGraphLikeView,
   probeGlobalPixiGraphicsDrawMode,
@@ -24,7 +23,12 @@ import {
   type RendererInternal
 } from "./utils/obsidianInternals";
 import { preNormalizeGraphNodeId } from "./utils/graphNodePath";
-import { DEFAULT_SETTINGS, normalizeSettings, type MultiColorSettings } from "./settings/settings";
+import {
+  DEFAULT_SETTINGS,
+  normalizeSettings,
+  type MultiColorSettings,
+  type PartialMultiColorSettings
+} from "./settings/settings";
 
 export interface RuntimeLogger {
   warn(message: string, error?: unknown): void;
@@ -56,6 +60,8 @@ interface ViewState {
   overlayMount: PixiOverlayMountLike;
   /** Current PIXI parent of `overlayMount` — always stage; kept for safe teardown. */
   mountParent: { current: unknown };
+  /** Kept so {@link MCGNRuntime.forceRenderAttachedViews} can trigger a redraw when Obsidian's simulation is settled. */
+  renderer: RendererInternal;
 }
 
 export class MCGNRuntime {
@@ -80,7 +86,7 @@ export class MCGNRuntime {
     return this.deps.normalizeNodePath?.(id) ?? this.defaultNormalizeNodePath(id);
   }
 
-  setSettings(nextSettings: Partial<MultiColorSettings>): void {
+  setSettings(nextSettings: PartialMultiColorSettings): void {
     this.settings = normalizeSettings({
       ...this.settings,
       ...nextSettings,
@@ -153,7 +159,8 @@ export class MCGNRuntime {
       handle: null as unknown as HookHandle,
       overlay,
       overlayMount,
-      mountParent
+      mountParent,
+      renderer
     };
 
     const handle = tryAttachGraphView(
@@ -198,7 +205,28 @@ export class MCGNRuntime {
     const openViews = this.deps.getAllGraphViews();
     this.detachMissingViews(openViews);
     for (const view of openViews) {
+      if (this.viewStateByView.has(view) && !this.isEnabledForView(view)) {
+        this.detachView(view);
+        continue;
+      }
       this.attachView(view);
+    }
+  }
+
+  /**
+   * Redraw overlays for every attached view without touching Obsidian's renderCallback.
+   * Invoking the patched callback would be a no-op on a settled simulation (the original does
+   * nothing, our overlay loop then reads stale state) and risks re-entering Obsidian's draw
+   * mid-batch. Running the overlay-draw loop out-of-band reuses the same error boundary logic
+   * by letting a caught error warn-and-continue, so a bad view can't take the graph down.
+   */
+  forceRenderAttachedViews(): void {
+    for (const [, state] of this.viewStateByView.entries()) {
+      try {
+        this.renderFrame(state.renderer, state);
+      } catch (error) {
+        this.deps.logger.warn("[MCGN] Forced redraw failed; will recover on next frame.", error);
+      }
     }
   }
 
@@ -229,7 +257,7 @@ export class MCGNRuntime {
   }
 
   private renderFrame(renderer: RendererInternal, state: ViewState): void {
-    const { overlay, overlayMount } = state;
+    const { overlay } = state;
     if (this.settings.killSwitch) {
       overlay.destroy();
       return;
@@ -278,8 +306,6 @@ export class MCGNRuntime {
     if (this.settings.perf.debugLogMultiColorStats) {
       this.maybeLogMultiColorStats(nodes, viewport);
     }
-
-    ensurePixiDisplayObjectIsOnTop(state.mountParent.current, overlayMount);
   }
 
   private maybeLogMultiColorStats(
@@ -313,12 +339,11 @@ export class MCGNRuntime {
     mountParent: { current: unknown },
     mount: PixiOverlayMountLike
   ): void {
+    // Detach from PIXI stage only. Do NOT call `mount.destroy()` — calling it mid-render
+    // can tear down GL resources Obsidian's renderer is still batching, which leaves the
+    // stage in a bad state (stock graph-group colors stop updating). Detaching is enough;
+    // the Container is a plain JS object that GC will claim once references drop.
     tryDetachOverlayChildFromParent(mountParent.current, mount);
-    try {
-      mount.destroy({ children: false });
-    } catch {
-      // Ignore double-destroy or PIXI edge cases during kill-switch / detach races.
-    }
   }
 
   private getNodeColors(path: string): GroupColor[] {

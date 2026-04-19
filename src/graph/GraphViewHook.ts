@@ -23,7 +23,10 @@ export class GraphViewHook {
   private readonly maxConsecutiveErrors: number;
   private detached = false;
   private errorCount = 0;
-  private readonly originalRenderCallback: (...args: unknown[]) => void;
+  /** Raw property as it existed before we patched — used on {@link detach} to restore exactly. */
+  private readonly rawOriginalRenderCallback: (...args: unknown[]) => void;
+  /** Pre-bound copy — used by the patched wrapper so `this` is always the renderer. */
+  private readonly boundOriginalRenderCallback: (...args: unknown[]) => void;
 
   constructor(
     private readonly renderer: RendererInternal,
@@ -32,13 +35,19 @@ export class GraphViewHook {
     options: GraphViewHookOptions = {}
   ) {
     this.maxConsecutiveErrors = Math.max(1, Math.floor(options.maxConsecutiveErrors ?? 5));
-    this.originalRenderCallback = renderer.renderCallback;
+    this.rawOriginalRenderCallback = renderer.renderCallback;
+    // Bind a separate copy so the original always executes with the correct `this`, even if
+    // Obsidian invokes the patched wrapper via a cached reference (e.g. inside a RAF loop) that
+    // has lost the `renderer.` prefix. Without this bind, the original can silently no-op, which
+    // leaves stock graph-group colors un-refreshed and looks like the plugin broke the renderer.
+    this.boundOriginalRenderCallback = this.rawOriginalRenderCallback.bind(renderer);
   }
 
   attach(): HookHandle {
     const hook = this;
     this.renderer.renderCallback = function patchedRenderCallback(this: unknown, ...args: unknown[]) {
-      hook.originalRenderCallback.apply(this, args);
+      // Always call the original with `this=renderer` via the pre-bound copy — see constructor.
+      hook.boundOriginalRenderCallback(...args);
       if (hook.detached) {
         return;
       }
@@ -65,7 +74,8 @@ export class GraphViewHook {
     if (this.detached) {
       return;
     }
-    this.renderer.renderCallback = this.originalRenderCallback;
+    // Restore the raw (un-bound) property so re-attach cycles don't accumulate bind wrappers.
+    this.renderer.renderCallback = this.rawOriginalRenderCallback;
     this.detached = true;
   }
 }

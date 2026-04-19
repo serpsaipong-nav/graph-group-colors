@@ -462,7 +462,7 @@ export function probeGlobalPixiGraphicsDrawMode(): "legacy" | "v8" {
   if (!g) {
     return "legacy";
   }
-  const rec = g as Record<string, unknown>;
+  const rec = g as unknown as Record<string, unknown>;
   const hasFill = typeof rec.fill === "function";
   const hasBegin = typeof rec.beginFill === "function";
   try {

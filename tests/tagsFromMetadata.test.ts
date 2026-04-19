@@ -42,7 +42,7 @@ describe("collectTagsFromCachedMetadata", () => {
     const meta = {
       tags: [{ tag: "#dup" }],
       frontmatter: { tags: ["dup", "#dup"] }
-    } as CachedMetadata;
+    } as unknown as CachedMetadata;
     expect(collectTagsFromCachedMetadata(meta)).toEqual(["#dup"]);
   });
 

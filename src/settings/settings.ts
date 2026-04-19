@@ -16,6 +16,11 @@ export interface MultiColorSettings {
   perf: PerfSettings;
 }
 
+/** Partial update shape for settings — `perf` may be a partial object so callers can flip one flag. */
+export type PartialMultiColorSettings = Partial<Omit<MultiColorSettings, "perf">> & {
+  perf?: Partial<PerfSettings>;
+};
+
 export const DEFAULT_SETTINGS: MultiColorSettings = {
   killSwitch: false,
   maxColorsPerNode: 6,
