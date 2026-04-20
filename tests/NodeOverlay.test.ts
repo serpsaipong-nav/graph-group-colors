@@ -120,6 +120,61 @@ describe("NodeOverlay", () => {
     expect(overlay.getOverlayCount()).toBe(0);
   });
 
+  it("clearMissing removes overlays whose nodeId is not in the active set", () => {
+    const container = new FakeContainer();
+    const overlay = new NodeOverlay(container, () => new FakeGraphics(), legacyOpts);
+
+    overlay.draw({ id: "a", x: 0, y: 0, r: 3 }, [colors[0], colors[1]]);
+    overlay.draw({ id: "b", x: 1, y: 1, r: 3 }, [colors[0], colors[2]]);
+    expect(overlay.getOverlayCount()).toBe(2);
+    const graphicForB = container.added[1];
+
+    overlay.clearMissing(new Set(["a"]));
+
+    expect(overlay.getOverlayCount()).toBe(1);
+    expect(container.removed).toEqual([graphicForB]);
+    expect(graphicForB.destroyed).toBe(true);
+  });
+
+  it("clearMissing with empty set clears every overlay", () => {
+    const container = new FakeContainer();
+    const overlay = new NodeOverlay(container, () => new FakeGraphics(), legacyOpts);
+
+    overlay.draw({ id: "a", x: 0, y: 0, r: 3 }, [colors[0], colors[1]]);
+    overlay.draw({ id: "b", x: 1, y: 1, r: 3 }, [colors[0], colors[2]]);
+
+    overlay.clearMissing(new Set<string>());
+
+    expect(overlay.getOverlayCount()).toBe(0);
+    expect(container.removed).toHaveLength(2);
+  });
+
+  it("clearMissing keeps every overlay when all ids are active", () => {
+    const container = new FakeContainer();
+    const overlay = new NodeOverlay(container, () => new FakeGraphics(), legacyOpts);
+
+    overlay.draw({ id: "a", x: 0, y: 0, r: 3 }, [colors[0], colors[1]]);
+    overlay.draw({ id: "b", x: 1, y: 1, r: 3 }, [colors[0], colors[2]]);
+
+    overlay.clearMissing(new Set(["a", "b"]));
+
+    expect(overlay.getOverlayCount()).toBe(2);
+    expect(container.removed).toHaveLength(0);
+  });
+
+  it("clearMissing is a no-op when destroyed", () => {
+    const container = new FakeContainer();
+    const overlay = new NodeOverlay(container, () => new FakeGraphics(), legacyOpts);
+
+    overlay.draw({ id: "a", x: 0, y: 0, r: 3 }, [colors[0], colors[1]]);
+    overlay.destroy();
+    container.removed.length = 0;
+
+    overlay.clearMissing(new Set<string>());
+
+    expect(container.removed).toHaveLength(0);
+  });
+
   it("uses Pixi-style fill per slice in v8 mode", () => {
     class FakeV8 implements PixiGraphicsLike {
       public x = 0;

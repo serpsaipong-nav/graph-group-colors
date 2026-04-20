@@ -283,11 +283,18 @@ export class MCGNRuntime {
     const viewport = this.settings.perf.cullOutsideViewport
       ? this.resolveViewportBounds(renderer)
       : null;
+    // Tracks every node still owned by the renderer this frame, regardless of viewport culling.
+    // Drives the post-loop GC so overlays for nodes that LEFT `renderer.nodes` (e.g. local-graph
+    // note switch) get dropped instead of lingering as ghost circles. Off-screen-but-still-present
+    // nodes must remain in the set, otherwise their overlays would be destroyed and recreated on
+    // every pan.
+    const activePaths = new Set<string>();
     for (const node of nodes) {
+      const filePath = this.resolveNodePath(node.id);
+      activePaths.add(filePath);
       if (viewport && !isNodeVisibleInViewport(node, viewport)) {
         continue;
       }
-      const filePath = this.resolveNodePath(node.id);
       const colors = this.getNodeColors(filePath);
       if (colors.length <= 1) {
         overlay.clear(filePath);
@@ -302,6 +309,7 @@ export class MCGNRuntime {
       const screenR = radius * scale;
       overlay.draw({ ...node, id: filePath, r: screenR, x: screenX, y: screenY }, colors);
     }
+    overlay.clearMissing(activePaths);
 
     if (this.settings.perf.debugLogMultiColorStats) {
       this.maybeLogMultiColorStats(nodes, viewport);

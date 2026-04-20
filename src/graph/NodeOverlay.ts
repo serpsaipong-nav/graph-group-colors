@@ -131,6 +131,34 @@ export class NodeOverlay {
     this.overlayByNodeId.delete(nodeId);
   }
 
+  /**
+   * Drop overlays whose nodeId is NOT in {@link activeIds}. Called once per frame to garbage-collect
+   * graphics for nodes that left `renderer.nodes` (e.g. local-graph note switch). Without this,
+   * orphaned overlay PIXI Graphics remain attached to the stage at their last x/y — visible as
+   * ghost colored circles after switching notes.
+   */
+  clearMissing(activeIds: ReadonlySet<string>): void {
+    if (this.destroyed) {
+      return;
+    }
+    // Collect first to avoid mutating the Map mid-iteration.
+    let toRemove: string[] | null = null;
+    for (const nodeId of this.overlayByNodeId.keys()) {
+      if (!activeIds.has(nodeId)) {
+        if (toRemove === null) {
+          toRemove = [];
+        }
+        toRemove.push(nodeId);
+      }
+    }
+    if (toRemove === null) {
+      return;
+    }
+    for (const nodeId of toRemove) {
+      this.clear(nodeId);
+    }
+  }
+
   destroy(): void {
     if (this.destroyed) {
       return;

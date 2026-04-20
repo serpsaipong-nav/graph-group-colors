@@ -212,6 +212,7 @@ These are **targets, not promises.** Actual numbers depend on vault shape, hardw
 4. **Local graph.** Multi-group rendering works in local view.
 5. **Group reorder.** Reordering groups reorders slices next redraw.
 6. **Invalid query tolerated.** Malformed query doesn't crash; other groups render.
+21. **No overlay leak on node-set change.** Open local graph on note A whose neighborhood includes multi-color nodes, then switch to note B with a disjoint neighborhood. Within one render frame, no overlay PIXI Graphics from A's nodes remain attached to the stage. Verified by `NodeOverlay.getOverlayCount()` reflecting only B's multi-color nodes after the next frame.
 
 ### Isolation
 
