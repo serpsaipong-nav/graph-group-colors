@@ -5,6 +5,8 @@ export interface GraphNodeInternal {
   x: number;
   y: number;
   r: number;
+  /** Obsidian sets this on graph nodes: "file" | "tag" | "attachment" | "unresolved". */
+  type?: string;
 }
 
 export interface PixiGraphicsInternal {

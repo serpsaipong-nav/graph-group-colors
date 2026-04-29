@@ -335,10 +335,14 @@ export default class GraphGroupColorsPlugin extends Plugin implements GraphGroup
       this.tagColorizer.detach();
       return;
     }
+    // Prefer the narrowest matching container so the observer watches as little DOM as possible.
+    // Fall back to the full leaf container (containerEl) — guaranteed to contain the pills.
+    const root = activeView.containerEl;
     const container =
-      activeView.contentEl.querySelector(".metadata-content") ??
-      activeView.contentEl.querySelector(".metadata-properties") ??
-      activeView.contentEl;
+      root.querySelector(".metadata-content") ??
+      root.querySelector(".metadata-properties") ??
+      root.querySelector(".metadata-container") ??
+      root;
     this.tagColorizer.attach(container);
   }
 

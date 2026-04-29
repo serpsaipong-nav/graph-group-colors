@@ -290,8 +290,11 @@ export class MCGNRuntime {
     // every pan.
     const activePaths = new Set<string>();
     for (const node of nodes) {
-      const isTagNode = node.id.startsWith("#");
-      const filePath = isTagNode ? node.id : this.resolveNodePath(node.id);
+      const isTagNode = node.type === "tag" || node.id.startsWith("#");
+      // Normalize tag node id to always have '#' so GroupResolver and cache use a consistent key.
+      const filePath = isTagNode
+        ? node.id.startsWith("#") ? node.id : `#${node.id}`
+        : this.resolveNodePath(node.id);
       activePaths.add(filePath);
       if (viewport && !isNodeVisibleInViewport(node, viewport)) {
         continue;
@@ -300,7 +303,7 @@ export class MCGNRuntime {
         overlay.clear(filePath);
         continue;
       }
-      const colors = isTagNode ? this.getTagNodeColors(node.id) : this.getNodeColors(filePath);
+      const colors = isTagNode ? this.getTagNodeColors(filePath) : this.getNodeColors(filePath);
       if (colors.length <= 1) {
         overlay.clear(filePath);
         continue;

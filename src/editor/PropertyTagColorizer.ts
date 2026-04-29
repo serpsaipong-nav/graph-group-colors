@@ -73,33 +73,43 @@ export class PropertyTagColorizer {
     const colors = this.getTagColors(tagId);
 
     if (colors.length === 0) {
-      this.clearPillStyle(pill);
+      this.clearPillStyle(pill, contentEl);
       return;
     }
 
+    const textColor = contrastColor(colors[0].rgb);
+
     if (colors.length === 1) {
       const hex = rgbIntToHex(colors[0].rgb);
-      pill.style.background = hex;
-      pill.style.color = contrastColor(colors[0].rgb);
-      pill.style.borderColor = hex;
+      pill.style.setProperty("background", hex, "important");
+      pill.style.setProperty("border-color", hex, "important");
     } else {
       const stops = colors
         .map((c, i) => `${rgbIntToHex(c.rgb)} ${Math.round((i / (colors.length - 1)) * 100)}%`)
         .join(", ");
-      pill.style.background = `linear-gradient(90deg, ${stops})`;
-      pill.style.color = contrastColor(colors[0].rgb);
-      pill.style.borderColor = "transparent";
+      pill.style.setProperty("background", `linear-gradient(90deg, ${stops})`, "important");
+      pill.style.setProperty("border-color", "transparent", "important");
+    }
+    // Set color on both the wrapper and the inner content span so Obsidian theme
+    // class-level color rules (which target .multi-select-pill-content directly) don't win.
+    pill.style.setProperty("color", textColor, "important");
+    if (contentEl) {
+      contentEl.style.setProperty("color", textColor, "important");
     }
   }
 
   private clearPills(container: Element): void {
     const pills = container.querySelectorAll<HTMLElement>(".multi-select-pill");
-    for (const pill of pills) this.clearPillStyle(pill);
+    for (const pill of pills) {
+      const contentEl = pill.querySelector<HTMLElement>(".multi-select-pill-content");
+      this.clearPillStyle(pill, contentEl);
+    }
   }
 
-  private clearPillStyle(pill: HTMLElement): void {
+  private clearPillStyle(pill: HTMLElement, contentEl: HTMLElement | null | undefined): void {
     pill.style.removeProperty("background");
     pill.style.removeProperty("color");
     pill.style.removeProperty("border-color");
+    contentEl?.style.removeProperty("color");
   }
 }
