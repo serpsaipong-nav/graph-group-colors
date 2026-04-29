@@ -4,11 +4,8 @@ function rgbIntToHex(rgb: number): string {
   return "#" + (rgb & 0xffffff).toString(16).padStart(6, "0");
 }
 
-function contrastColor(rgb: number): string {
-  const r = (rgb >> 16) & 0xff;
-  const g = (rgb >> 8) & 0xff;
-  const b = rgb & 0xff;
-  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.5 ? "#1a1a1a" : "#ffffff";
+function textColor(): string {
+  return "#ffffff";
 }
 
 export class PropertyTagColorizer {
@@ -77,7 +74,7 @@ export class PropertyTagColorizer {
       return;
     }
 
-    const textColor = contrastColor(colors[0].rgb);
+    const color = textColor();
 
     if (colors.length === 1) {
       const hex = rgbIntToHex(colors[0].rgb);
@@ -92,9 +89,9 @@ export class PropertyTagColorizer {
     }
     // Set color on both the wrapper and the inner content span so Obsidian theme
     // class-level color rules (which target .multi-select-pill-content directly) don't win.
-    pill.style.setProperty("color", textColor, "important");
+    pill.style.setProperty("color", color, "important");
     if (contentEl) {
-      contentEl.style.setProperty("color", textColor, "important");
+      contentEl.style.setProperty("color", color, "important");
     }
   }
 

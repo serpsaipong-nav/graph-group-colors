@@ -303,7 +303,11 @@ export class MCGNRuntime {
         continue;
       }
       const colors = isTagNode ? this.getTagNodeColors(filePath) : this.getNodeColors(filePath);
-      if (colors.length <= 1) {
+      // File nodes: Obsidian already handles single-group color, only overlay for 2+ groups.
+      // Tag nodes: Obsidian does not apply color groups to tag nodes themselves, so overlay
+      // even for a single match so the tag node shows its group color.
+      const minColors = isTagNode ? 1 : 2;
+      if (colors.length < minColors) {
         overlay.clear(filePath);
         continue;
       }
