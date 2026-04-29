@@ -329,7 +329,14 @@ export class MCGNRuntime {
         overlay.clear(filePath);
         continue;
       }
-      const radius = readNodeRadius(node);
+      let radius = readNodeRadius(node);
+      // For tag nodes, fall back to a weight-derived estimate when all display-object probes
+      // fail (local graph tag nodes may render as bare text with no measurable PIXI bounds
+      // until at least one frame has been painted by Obsidian's own renderer).
+      if ((radius === null || radius <= 0) && isTagNode) {
+        const w = (node as Record<string, unknown>).weight;
+        radius = typeof w === "number" && Number.isFinite(w) && w > 0 ? 3 + w * 1.5 : 4;
+      }
       if (radius === null || radius <= 0) {
         continue;
       }

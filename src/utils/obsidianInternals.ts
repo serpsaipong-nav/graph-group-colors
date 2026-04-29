@@ -284,8 +284,9 @@ function tryReadOverlayParentFromRendererRecord(renderer: RendererInternal): unk
 }
 
 /**
- * Obsidian 1.12+ dropped `node.r`; derive effective radius from `node.circle.width/2`
- * (bounding box of the PIXI display object). Returns null if nothing usable is present.
+ * Obsidian 1.12+ dropped `node.r`; derive effective radius from the PIXI display object's
+ * bounding size. File nodes use `node.circle`; tag nodes in the local graph use other
+ * property names (sprite, text, label, …). Try all known candidates before giving up.
  */
 export function readNodeRadius(node: unknown): number | null {
   if (!isObject(node)) return null;
@@ -293,15 +294,38 @@ export function readNodeRadius(node: unknown): number | null {
   if (typeof n.r === "number" && Number.isFinite(n.r) && n.r > 0) {
     return n.r;
   }
-  const circle = n.circle;
-  if (isObject(circle)) {
-    const c = circle as Record<string, unknown>;
+  // Candidate display-object property names used by Obsidian across versions and node types.
+  // circle: file nodes; text/label/textSprite: tag nodes in local graph.
+  const candidates = [
+    n.circle, n.sprite, n.text, n.label, n.textSprite,
+    n.obj, n.g, n.graphic, n.displayObject, n.node, n.graphics
+  ];
+  for (const display of candidates) {
+    if (!isObject(display)) continue;
+    const c = display as Record<string, unknown>;
     if (typeof c.width === "number" && Number.isFinite(c.width) && c.width > 0) {
       return c.width / 2;
     }
-    const scale = c.scale as { x?: unknown } | undefined;
-    if (scale && typeof scale.x === "number" && Number.isFinite(scale.x) && scale.x > 0) {
-      return scale.x * 8;
+    if (typeof c.height === "number" && Number.isFinite(c.height) && c.height > 0) {
+      return c.height / 2;
+    }
+    const sc = c.scale as { x?: unknown } | undefined;
+    if (sc && typeof sc.x === "number" && Number.isFinite(sc.x) && sc.x > 0) {
+      return sc.x * 8;
+    }
+    // PIXI getBounds() returns a Rectangle; use its width as a last resort.
+    if (typeof c.getBounds === "function") {
+      try {
+        const bounds = (c.getBounds as () => unknown)();
+        if (isObject(bounds)) {
+          const b = bounds as Record<string, unknown>;
+          if (typeof b.width === "number" && Number.isFinite(b.width) && b.width > 0) {
+            return b.width / 2;
+          }
+        }
+      } catch {
+        // getBounds can throw on unattached display objects — ignore.
+      }
     }
   }
   return null;
