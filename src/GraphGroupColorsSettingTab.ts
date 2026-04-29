@@ -37,6 +37,30 @@ export class GraphGroupColorsSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName("Color tag nodes in graph")
+      .setDesc(
+        "Apply multi-color overlays to tag nodes (requires 'Show tags' in Graph settings) when a tag belongs to 2+ color groups."
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.api.mergedSettings.enableTagNodeColors).onChange(async (value) => {
+          await this.api.applyPluginSettings({ enableTagNodeColors: value });
+          this.display();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("Color tags in note properties")
+      .setDesc(
+        "Recolor tag pills in the Properties panel to match their graph color groups. Tags in 2+ groups show a gradient."
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.api.mergedSettings.enablePropertyTagColors).onChange(async (value) => {
+          await this.api.applyPluginSettings({ enablePropertyTagColors: value });
+          this.display();
+        })
+      );
+
+    new Setting(containerEl)
       .setName("Debug multi-color stats")
       .setDesc(
         "Logs every 5 seconds how many visible graph nodes matched 2+ color groups (see developer console). Use to verify group resolution."

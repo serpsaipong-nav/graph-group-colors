@@ -46,6 +46,11 @@ export class GroupResolver {
     this.groups = Array.isArray(config.colorGroups) ? config.colorGroups.slice() : [];
   }
 
+  resolveForTag(tagId: string): GroupColorMatch[] {
+    const normalized = tagId.startsWith("#") ? tagId : `#${tagId}`;
+    return this.resolveForFile(normalized, [normalized]);
+  }
+
   resolveForFile(path: string, tags: readonly string[]): GroupColorMatch[] {
     const context: NoteContext = { path, tags };
     const results: GroupColorMatch[] = [];

@@ -13,6 +13,8 @@ export interface MultiColorSettings {
   maxColorsPerNode: number;
   enableGlobalGraph: boolean;
   enableLocalGraph: boolean;
+  enableTagNodeColors: boolean;
+  enablePropertyTagColors: boolean;
   perf: PerfSettings;
 }
 
@@ -26,6 +28,8 @@ export const DEFAULT_SETTINGS: MultiColorSettings = {
   maxColorsPerNode: 6,
   enableGlobalGraph: true,
   enableLocalGraph: true,
+  enableTagNodeColors: true,
+  enablePropertyTagColors: true,
     perf: {
       throttleEnabled: false,
       throttleInterval: 2,
@@ -54,6 +58,8 @@ export function normalizeSettings(input: Partial<MultiColorSettings> | null | un
     ),
     enableGlobalGraph: input?.enableGlobalGraph ?? DEFAULT_SETTINGS.enableGlobalGraph,
     enableLocalGraph: input?.enableLocalGraph ?? DEFAULT_SETTINGS.enableLocalGraph,
+    enableTagNodeColors: input?.enableTagNodeColors ?? DEFAULT_SETTINGS.enableTagNodeColors,
+    enablePropertyTagColors: input?.enablePropertyTagColors ?? DEFAULT_SETTINGS.enablePropertyTagColors,
     perf: {
       throttleEnabled: perfInput?.throttleEnabled ?? DEFAULT_SETTINGS.perf.throttleEnabled,
       throttleInterval: normalizePositiveInt(

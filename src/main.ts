@@ -290,12 +290,17 @@ export class MCGNRuntime {
     // every pan.
     const activePaths = new Set<string>();
     for (const node of nodes) {
-      const filePath = this.resolveNodePath(node.id);
+      const isTagNode = node.id.startsWith("#");
+      const filePath = isTagNode ? node.id : this.resolveNodePath(node.id);
       activePaths.add(filePath);
       if (viewport && !isNodeVisibleInViewport(node, viewport)) {
         continue;
       }
-      const colors = this.getNodeColors(filePath);
+      if (isTagNode && !this.settings.enableTagNodeColors) {
+        overlay.clear(filePath);
+        continue;
+      }
+      const colors = isTagNode ? this.getTagNodeColors(node.id) : this.getNodeColors(filePath);
       if (colors.length <= 1) {
         overlay.clear(filePath);
         continue;
@@ -352,6 +357,20 @@ export class MCGNRuntime {
     // stage in a bad state (stock graph-group colors stop updating). Detaching is enough;
     // the Container is a plain JS object that GC will claim once references drop.
     tryDetachOverlayChildFromParent(mountParent.current, mount);
+  }
+
+  resolveTagColors(tagId: string): GroupColor[] {
+    return this.getTagNodeColors(tagId);
+  }
+
+  private getTagNodeColors(tagId: string): GroupColor[] {
+    const cached = this.cache.get(tagId);
+    if (cached) {
+      return this.toOverlayColors(cached);
+    }
+    const resolved = this.resolver.resolveForTag(tagId);
+    this.cache.set(tagId, resolved);
+    return this.toOverlayColors(resolved);
   }
 
   private getNodeColors(path: string): GroupColor[] {

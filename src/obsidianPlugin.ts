@@ -1,5 +1,6 @@
-import { normalizePath, Notice, Plugin, TFile } from "obsidian";
+import { MarkdownView, normalizePath, Notice, Plugin, TFile } from "obsidian";
 import { GraphGroupColorsSettingTab } from "./GraphGroupColorsSettingTab";
+import { PropertyTagColorizer } from "./editor/PropertyTagColorizer";
 import type { GraphConfig } from "./graph/GroupResolver";
 import { MCGNRuntime } from "./main";
 import type { GraphGroupColorsPluginApi } from "./pluginApi";
@@ -25,6 +26,7 @@ export default class GraphGroupColorsPlugin extends Plugin implements GraphGroup
   private runtimeLaunch: Promise<void> | null = null;
   /** Log once if we are waiting for PIXI (loads with Graph view). */
   private loggedPixiDeferred = false;
+  private tagColorizer: PropertyTagColorizer | null = null;
 
   async onload(): Promise<void> {
     const loaded = (await this.loadData()) as Partial<MultiColorSettings> | null | undefined;
@@ -40,6 +42,14 @@ export default class GraphGroupColorsPlugin extends Plugin implements GraphGroup
     this.registerEvent(
       this.app.workspace.on("layout-change", () => {
         void this.onWorkspaceLayoutChange();
+      })
+    );
+
+    this.tagColorizer = new PropertyTagColorizer((tagId) => this.runtime?.resolveTagColors(tagId) ?? []);
+
+    this.registerEvent(
+      this.app.workspace.on("active-leaf-change", () => {
+        this.refreshPropertyColorizer();
       })
     );
 
@@ -137,6 +147,7 @@ export default class GraphGroupColorsPlugin extends Plugin implements GraphGroup
     this.runtime?.setSettings(this.mergedSettings);
     this.runtime?.refreshAttachedViews();
     this.runtime?.forceRenderAttachedViews();
+    this.refreshPropertyColorizer();
   }
 
   onunload(): void {
@@ -144,6 +155,8 @@ export default class GraphGroupColorsPlugin extends Plugin implements GraphGroup
       clearTimeout(this.graphReloadTimer);
       this.graphReloadTimer = null;
     }
+    this.tagColorizer?.detach();
+    this.tagColorizer = null;
     this.runtime?.destroy();
     this.runtime = null;
   }
@@ -276,6 +289,7 @@ export default class GraphGroupColorsPlugin extends Plugin implements GraphGroup
     }
     this.runtime.loadGraphConfig(next);
     this.runtime.refreshAttachedViews();
+    this.tagColorizer?.refresh();
   }
 
   private async readGraphConfig(): Promise<GraphConfig | null> {
@@ -309,6 +323,23 @@ export default class GraphGroupColorsPlugin extends Plugin implements GraphGroup
       views.push(leaf.view);
     }
     return views;
+  }
+
+  private refreshPropertyColorizer(): void {
+    if (!this.tagColorizer || !this.mergedSettings.enablePropertyTagColors) {
+      this.tagColorizer?.detach();
+      return;
+    }
+    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!activeView) {
+      this.tagColorizer.detach();
+      return;
+    }
+    const container =
+      activeView.contentEl.querySelector(".metadata-content") ??
+      activeView.contentEl.querySelector(".metadata-properties") ??
+      activeView.contentEl;
+    this.tagColorizer.attach(container);
   }
 
   private collectTagsForPath(path: string): readonly string[] {
