@@ -290,10 +290,28 @@ export class MCGNRuntime {
     // every pan.
     const activePaths = new Set<string>();
     for (const node of nodes) {
-      // resolveNodePath returns '#tag' for vault tag nodes (signalled by normalizeNodePath dep).
-      // Also catch the case where Obsidian itself prefixes tag node ids with '#'.
-      const filePath = this.resolveNodePath(node.id);
-      const isTagNode = filePath.startsWith("#") || node.type === "tag";
+      // Primary detection: normalizeNodePath returns '#tag' for vault tags; Obsidian may also
+      // set node.type === "tag" on some versions.
+      let filePath = this.resolveNodePath(node.id);
+      let isTagNode = filePath.startsWith("#") || node.type === "tag";
+
+      // Fallback for local-graph tag nodes whose IDs are bare names (no '#' prefix, no file
+      // extension, no path separator). The vault lookup in normalizeNodePath may miss these
+      // if metadataCache hasn't indexed them yet or uses a different key format.
+      // Attempt tag color resolution; a non-empty result confirms it is a tag node.
+      // getTagNodeColors is cached so this is free on every frame after the first hit.
+      if (!isTagNode && this.settings.enableTagNodeColors
+          && !filePath.includes(".") && !filePath.includes("/")) {
+        const candidateId = filePath.startsWith("#") ? filePath : `#${filePath}`;
+        const candidateColors = this.getTagNodeColors(candidateId);
+        if (candidateColors.length > 0) {
+          isTagNode = true;
+          filePath = candidateId;
+        }
+      }
+
+      // activePaths must be populated before the viewport-cull continue so off-screen nodes
+      // are tracked and their overlays are not destroyed when they pan back into view.
       activePaths.add(filePath);
       if (viewport && !isNodeVisibleInViewport(node, viewport)) {
         continue;
