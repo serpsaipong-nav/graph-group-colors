@@ -290,11 +290,10 @@ export class MCGNRuntime {
     // every pan.
     const activePaths = new Set<string>();
     for (const node of nodes) {
-      const isTagNode = node.type === "tag" || node.id.startsWith("#");
-      // Normalize tag node id to always have '#' so GroupResolver and cache use a consistent key.
-      const filePath = isTagNode
-        ? node.id.startsWith("#") ? node.id : `#${node.id}`
-        : this.resolveNodePath(node.id);
+      // resolveNodePath returns '#tag' for vault tag nodes (signalled by normalizeNodePath dep).
+      // Also catch the case where Obsidian itself prefixes tag node ids with '#'.
+      const filePath = this.resolveNodePath(node.id);
+      const isTagNode = filePath.startsWith("#") || node.type === "tag";
       activePaths.add(filePath);
       if (viewport && !isNodeVisibleInViewport(node, viewport)) {
         continue;

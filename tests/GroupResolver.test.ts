@@ -35,6 +35,26 @@ describe("GroupResolver", () => {
     expect(privateNote[0].rgb).toBe(0xcc0066);
   });
 
+  it("supports OR queries", () => {
+    const resolver = new GroupResolver({ maxColorsPerNode: 6 });
+    resolver.loadGroups({
+      colorGroups: [
+        { query: "tag:#anthropic OR tag:#claude OR tag:#claude-code", color: { rgb: 0xff0000, a: 1 } },
+        { query: "tag:#databricks", color: { rgb: 0x0000ff, a: 1 } }
+      ]
+    });
+
+    // Matches first group via OR branch
+    expect(resolver.resolveForFile("a.md", ["#claude"]).map((m) => m.rgb)).toEqual([0xff0000]);
+    expect(resolver.resolveForFile("b.md", ["#claude-code"]).map((m) => m.rgb)).toEqual([0xff0000]);
+    // Matches neither OR branch
+    expect(resolver.resolveForFile("c.md", ["#other"])).toHaveLength(0);
+    // Matches second group
+    expect(resolver.resolveForFile("d.md", ["#databricks"]).map((m) => m.rgb)).toEqual([0x0000ff]);
+    // Matches both groups (first via OR, second directly)
+    expect(resolver.resolveForFile("e.md", ["#anthropic", "#databricks"]).map((m) => m.rgb)).toEqual([0xff0000, 0x0000ff]);
+  });
+
   it("caps the number of resolved colors", () => {
     const resolver = new GroupResolver({ maxColorsPerNode: 2 });
     resolver.loadGroups({

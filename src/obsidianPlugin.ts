@@ -208,7 +208,7 @@ export default class GraphGroupColorsPlugin extends Plugin implements GraphGroup
         return graphic;
       },
       getPixiGraphicsDrawMode: () => probeGlobalPixiGraphicsDrawMode(),
-      normalizeNodePath: (id: string) => normalizePath(preNormalizeGraphNodeId(id)),
+      normalizeNodePath: (id: string) => this.normalizeNodePathForRuntime(id),
       getNodeTags: (path: string) => this.collectTagsForPath(path),
       getAllGraphViews: () => this.collectOpenGraphViews(),
       isSimulationActive: (renderer) => readSimulationActiveFromRenderer(renderer)
@@ -344,6 +344,26 @@ export default class GraphGroupColorsPlugin extends Plugin implements GraphGroup
       root.querySelector(".metadata-container") ??
       root;
     this.tagColorizer.attach(container);
+  }
+
+  private normalizeNodePathForRuntime(id: string): string {
+    const pre = preNormalizeGraphNodeId(id);
+    // Already signalled as a tag (id starts with '#' from Obsidian or a prior call).
+    if (pre.startsWith("#")) {
+      return pre;
+    }
+    const normalized = normalizePath(pre);
+    // Real vault file — return vault path.
+    if (this.app.vault.getAbstractFileByPath(normalized)) {
+      return normalized;
+    }
+    // No file found: check if this id is a known tag (metadataCache.getTags keys use '#' prefix).
+    const allTags = this.app.metadataCache.getTags() as Record<string, number> | null;
+    if (allTags && Object.prototype.hasOwnProperty.call(allTags, `#${normalized}`)) {
+      return `#${normalized}`;
+    }
+    // Unresolved link or attachment — return as plain path.
+    return normalized;
   }
 
   private collectTagsForPath(path: string): readonly string[] {

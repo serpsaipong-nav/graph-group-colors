@@ -76,7 +76,18 @@ export class GroupResolver {
   }
 
   private matchesQuery(query: string, context: NoteContext): boolean {
-    const terms = query
+    // Split on OR (surrounded by whitespace) — any OR group matching is sufficient.
+    const orGroups = query.split(/\s+OR\s+/);
+    for (const group of orGroups) {
+      if (this.matchesAndGroup(group, context)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private matchesAndGroup(group: string, context: NoteContext): boolean {
+    const terms = group
       .split(/\s+/)
       .map((term) => term.trim())
       .filter((term) => term.length > 0);
